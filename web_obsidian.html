@@ -27,6 +27,11 @@
             box-sizing: border-box
         }
 
+        html,
+        body {
+            height: 100%;
+        }
+
         body {
             font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
             background: var(--canvas);
@@ -143,7 +148,10 @@
             font: 14px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace;
             tab-size: 2;
             resize: none;
+            width: 100%;
             height: 100%;
+            min-height: 0;
+            flex: 1 1 auto;
         }
 
         .markdown-body {
@@ -313,16 +321,6 @@
             animation: menu-in .18s ease-out both;
         }
 
-        #tocPanel {
-            display: none;
-        }
-
-        @media(min-width:1280px) {
-            #tocPanel.is-visible {
-                display: flex;
-            }
-        }
-
         .menu-action {
             display: block;
             width: 100%;
@@ -357,6 +355,64 @@
 
         .toc-item:hover {
             color: var(--accent);
+        }
+
+        /* 拖曳霸樣式 */
+        .resizer {
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            position: relative;
+            z-index: 10;
+            transition: background-color 0.2s;
+            flex: 0 0 6px;
+            align-self: stretch;
+        }
+
+        .resizer:hover,
+        .resizer.dragging {
+            background: var(--accent);
+            opacity: 0.5;
+        }
+
+        /* 三欄容器：用 flex，但寬度由 JS 以 px 控制 */
+        #resizerContainer {
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            gap: 0;
+            min-height: 0;
+        }
+
+        #editorPane,
+        #previewPane,
+        #tocPane {
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #editorPane,
+        #previewPane {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #tocPane {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 預覽區：讓它自己成為滾動容器 */
+        #previewPane {
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* TOC：同上 */
+        #tocPane {
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         @media(max-width:640px) {
@@ -437,10 +493,10 @@
                     class="ghost hidden rounded-lg px-2 py-1 text-xs" type="button">重新授權並恢復上次項目</button></div>
         </aside>
 
-        <!-- 主內容區 (滿版雙欄：左編輯、右預覽 + 導覽列) -->
-        <main id="mainContent" class="scrollbar flex-1 min-w-0 overflow-y-auto p-4 sm:p-6">
-            <div id="workspace" class="hidden h-full flex flex-col">
-                <!-- 檔案工具列 (保留儲存、另存、檔名與狀態) -->
+        <!-- 主內容區 (滿版可拉動三欄) -->
+        <main id="mainContent" class="flex-1 min-w-0 min-h-0 flex flex-col p-4 sm:p-6">
+            <div id="workspace" class="hidden flex-1 min-h-0 flex flex-col">
+                <!-- 檔案工具列 -->
                 <div
                     class="toolbar shrink-0 mb-4 flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 rounded-xl">
                     <div class="min-w-0">
@@ -467,33 +523,38 @@
                                 aria-pressed="true">隱藏編輯</button>
                             <button id="previewToggle" class="menu-action ghost rounded-lg px-3 py-2 text-sm"
                                 aria-pressed="true">隱藏預覽</button>
+                            <button id="tocToggleTop" class="menu-action ghost rounded-lg px-3 py-2 text-sm"
+                                type="button" aria-expanded="true">隱藏導覽</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- 滿版左右雙欄編輯與預覽區 + 標題導覽列 -->
-                <div class="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-12 gap-4 pb-4">
+                <!-- 三欄彈性拉動編輯與預覽區 + 標題導覽列 -->
+                <div id="resizerContainer" class="flex-1 min-h-0 pb-4">
                     <!-- 左側：Markdown 編輯器 -->
-                    <div class="xl:col-span-5 h-[calc(100vh-220px)] min-h-[400px] flex flex-col">
-                        <textarea id="editor" class="w-full rounded-xl border bg-white p-4 scrollbar"
+                    <div id="editorPane">
+                        <textarea id="editor" class="rounded-xl border bg-white p-4 scrollbar"
                             style="border-color:var(--line);color:var(--ink)" spellcheck="false"
                             aria-label="Markdown 編輯器"></textarea>
                     </div>
 
-                    <!-- 右側：即時預覽區 -->
-                    <div class="xl:col-span-5 h-[calc(100vh-220px)] min-h-[400px] rounded-xl border bg-white p-6 overflow-y-auto scrollbar"
-                        style="border-color:var(--line); background:var(--surface)">
+                    <!-- 拖曳霸 1 -->
+                    <div id="resizer1" class="resizer mx-2 rounded"></div>
+
+                    <!-- 中間：即時預覽區 -->
+                    <div id="previewPane" class="rounded-xl border bg-white p-6 scrollbar"
+                        style="border-color:var(--line); background:var(--surface);">
                         <article id="viewer" class="markdown-body"></article>
                     </div>
 
+                    <!-- 拖曳霸 2 -->
+                    <div id="resizer2" class="resizer mx-2 rounded"></div>
+
                     <!-- 最右側：標題導覽欄 (TOC) -->
-                    <div id="tocPanel"
-                        class="xl:col-span-2 flex-col h-[calc(100vh-220px)] rounded-xl border p-4 overflow-y-auto scrollbar"
-                        style="border-color:var(--line); background:var(--surface)">
-                        <div class="flex items-center justify-between gap-2 mb-3">
+                    <div id="tocPane" class="rounded-xl border p-4 scrollbar"
+                        style="border-color:var(--line); background:var(--surface);">
+                        <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
                             <h3 class="text-xs font-bold uppercase tracking-wider" style="color:var(--muted)">導覽列</h3>
-                            <button id="tocToggle" class="ghost rounded-md px-2 py-1 text-xs" type="button"
-                                aria-expanded="true">收合</button>
                         </div>
                         <nav id="tocContainer" class="flex flex-col gap-1">
                             <span class="text-xs" style="color:var(--muted)">尚無標題</span>
@@ -521,49 +582,113 @@
             editor = $('editor'),
             tocContainer = $('tocContainer'),
             sidebar = $('sidebar'),
-            state = { files: [], active: null, dir: null, content: '', dirty: false, showEditor: true, showPreview: true, showTOC: true };
+            state = {
+                files: [],
+                active: null,
+                dir: null,
+                content: '',
+                dirty: false,
+                showEditor: true,
+                showPreview: true,
+                showTOC: true
+            };
 
         const defaults = { accent: '#6558d3', background: '#f7f8fc', surface: '#ffffff', text: '#263148' };
 
-        function loadPrefs() { try { return JSON.parse(localStorage.getItem('MavMD設定') || '{}') } catch { return {} } }
-        function savePrefs() { try { localStorage.setItem('MavMD設定', JSON.stringify({ colors: Object.fromEntries(Object.entries(colorInputs).map(([key, input]) => [key, input.value])), folder: state.dir?.name || '' })) } catch { } }
+        const colorInputs = {
+            accent: $('accentColor'),
+            background: $('backgroundColor'),
+            surface: $('surfaceColor'),
+            text: $('textColor')
+        };
 
-        const colorInputs = { accent: $('accentColor'), background: $('backgroundColor'), surface: $('surfaceColor'), text: $('textColor') };
+        /* ---------- 偏好設定 ---------- */
+        function loadPrefs() {
+            try { return JSON.parse(localStorage.getItem('MavMD設定') || '{}') } catch { return {} }
+        }
+
+        function savePrefs() {
+            try {
+                const paneWidths = getPaneWidths();
+                localStorage.setItem('MavMD設定', JSON.stringify({
+                    colors: Object.fromEntries(Object.entries(colorInputs).map(([key, input]) => [key, input.value])),
+                    folder: state.dir?.name || '',
+                    widths: paneWidths
+                }));
+            } catch { }
+        }
 
         function applyColors(colors = {}) {
             for (const key in defaults) {
                 const value = /^#[0-9a-f]{6}$/i.test(colors[key] || '') ? colors[key] : defaults[key];
                 colorInputs[key].value = value;
-                document.documentElement.style.setProperty(`--${key === 'background' ? 'canvas' : key === 'surface' ? 'surface' : key === 'text' ? 'ink' : 'accent'}`, value);
+                document.documentElement.style.setProperty(
+                    `--${key === 'background' ? 'canvas' : key === 'surface' ? 'surface' : key === 'text' ? 'ink' : 'accent'}`,
+                    value
+                );
                 if (key === 'accent') document.documentElement.style.setProperty('--accent-soft', mix(value, '#ffffff', .9));
                 if (key === 'surface') document.documentElement.style.setProperty('--surface', value);
             }
         }
 
-        function mix(color, white, amount) { return '#' + [1, 3, 5].map(i => Math.round(parseInt(color.slice(i, i + 2), 16) * (1 - amount) + parseInt(white.slice(i, i + 2), 16) * amount).toString(16).padStart(2, '0')).join('') }
+        function mix(color, white, amount) {
+            return '#' + [1, 3, 5].map(i =>
+                Math.round(parseInt(color.slice(i, i + 2), 16) * (1 - amount) + parseInt(white.slice(i, i + 2), 16) * amount)
+                    .toString(16).padStart(2, '0')
+            ).join('');
+        }
 
         const prefs = loadPrefs();
         applyColors(prefs.colors);
         if (prefs.folder) $('folderName').textContent = prefs.folder;
 
-        // File System Access handles are kept in IndexedDB so the same folder/file can be restored next time.
+        for (const [key, input] of Object.entries(colorInputs)) {
+            input.addEventListener('input', () => {
+                const c = {};
+                for (const k in colorInputs) c[k] = colorInputs[k].value;
+                applyColors(c);
+                savePrefs();
+            });
+        }
+        $('resetColors').onclick = () => { applyColors(defaults); savePrefs() };
+
+        /* ---------- 檔案控制代碼儲存 ---------- */
         const handleDB = new Promise((resolve, reject) => {
             const request = indexedDB.open('MavMD檔案記憶', 1);
             request.onupgradeneeded = () => request.result.createObjectStore('handles');
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
         });
+
         async function storeHandle(key, handle) {
-            try { const db = await handleDB; await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').put(handle, key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); } catch { }
+            try {
+                const db = await handleDB;
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction('handles', 'readwrite');
+                    tx.objectStore('handles').put(handle, key);
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch { }
         }
+
         async function getStoredHandle(key) {
-            try { const db = await handleDB; return await new Promise((resolve, reject) => { const req = db.transaction('handles').objectStore('handles').get(key); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); } catch { return null; }
+            try {
+                const db = await handleDB;
+                return await new Promise((resolve, reject) => {
+                    const req = db.transaction('handles').objectStore('handles').get(key);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            } catch { return null; }
         }
+
         async function permit(handle, fromClick = false) {
             let permission = await handle.queryPermission({ mode: 'readwrite' });
             if (permission !== 'granted' && fromClick) permission = await handle.requestPermission({ mode: 'readwrite' });
             return permission === 'granted';
         }
+
         async function restoreLastOpen(fromClick = false) {
             const savedDir = await getStoredHandle('directory');
             const savedFile = await getStoredHandle('activeFile');
@@ -575,7 +700,10 @@
                     tree.replaceChildren();
                     await scan(savedDir);
                     setStatus(`${state.files.length} 個筆記 · 已恢復資料夾「${savedDir.name}」`);
-                } else if (savedDir) { needsPermission = true; setStatus('上次的資料夾已記住；瀏覽器需要重新授權才能自動開啟。'); }
+                } else if (savedDir) {
+                    needsPermission = true;
+                    setStatus('上次的資料夾已記住；瀏覽器需要重新授權才能自動開啟。');
+                }
                 if (savedFile && await permit(savedFile, fromClick)) {
                     let item = null;
                     for (const candidate of state.files) {
@@ -584,7 +712,8 @@
                     if (!item) {
                         const f = await savedFile.getFile();
                         item = { name: f.name, path: f.name, handle: savedFile, parentHandle: null };
-                        state.files.push(item); addRow(item);
+                        state.files.push(item);
+                        addRow(item);
                     }
                     await openNote(item);
                     setStatus(`已自動開啟「${item.name}」`);
@@ -598,17 +727,6 @@
         }
         $('resumeLastBtn').onclick = () => restoreLastOpen(true);
 
-        for (const [key, input] of Object.entries(colorInputs)) {
-            input.addEventListener('input', () => {
-                const c = {};
-                for (const k in colorInputs) c[k] = colorInputs[k].value;
-                applyColors(c);
-                savePrefs();
-            });
-        }
-
-        $('resetColors').onclick = () => { applyColors(defaults); savePrefs() };
-
         const setStatus = text => $('status').textContent = text;
 
         function setDirty(value) {
@@ -619,31 +737,197 @@
 
         function showWorkspace() { $('welcome').classList.add('hidden'); $('workspace').classList.remove('hidden') }
 
+        /* ---------- 三欄寬度控制 ---------- */
+        const paneEls = {
+            editor: () => $('editorPane'),
+            preview: () => $('previewPane'),
+            toc: () => $('tocPane')
+        };
+
+        const DEFAULT_WIDTHS = { editor: 0.34, preview: 0.44, toc: 0.22 };
+        const MIN_WIDTHS = { editor: 160, preview: 160, toc: 140 };
+
+        function getPaneWidths() {
+            const c = $('resizerContainer');
+            const total = c.clientWidth || 1;
+            return {
+                editor: paneEls.editor().offsetWidth / total,
+                preview: paneEls.preview().offsetWidth / total,
+                toc: paneEls.toc().offsetWidth / total
+            };
+        }
+
+        function applyPaneWidths(widths) {
+            const container = $('resizerContainer');
+            const total = container.clientWidth;
+            if (!total) return;
+
+            const showEditor = state.showEditor;
+            const showPreview = state.showPreview;
+            const showTOC = state.showTOC;
+
+            const resizers = [];
+            if (showEditor && showPreview) resizers.push($('resizer1'));
+            if ((showEditor || showPreview) && showTOC) resizers.push($('resizer2'));
+
+            const resizerWidth = resizers.reduce((sum, r) => sum + r.offsetWidth + 16, 0);
+            const usable = Math.max(0, total - resizerWidth);
+
+            let w = { ...widths };
+
+            if (!showEditor && showPreview) { w.preview += w.editor; w.editor = 0; }
+            if (!showPreview && showEditor) { w.editor += w.preview; w.preview = 0; }
+            if (!showEditor && !showPreview && showTOC) { w.toc = 1; w.editor = 0; w.preview = 0; }
+            if (!showTOC) { w.toc = 0; }
+
+            const sum = w.editor + w.preview + w.toc || 1;
+            w.editor /= sum; w.preview /= sum; w.toc /= sum;
+
+            let tocPx = showTOC ? Math.round(usable * w.toc) : 0;
+            if (showTOC) tocPx = Math.max(MIN_WIDTHS.toc, tocPx);
+
+            let editorPx = showEditor ? Math.round(usable * w.editor) : 0;
+            let previewPx = showPreview ? Math.round(usable * w.preview) : 0;
+
+            if (showEditor) editorPx = Math.max(MIN_WIDTHS.editor, editorPx);
+            if (showPreview) previewPx = Math.max(MIN_WIDTHS.preview, previewPx);
+
+            let diff = usable - (editorPx + previewPx + tocPx);
+            if (diff !== 0) {
+                if (showPreview && previewPx + diff >= MIN_WIDTHS.preview) previewPx += diff;
+                else if (showEditor && editorPx + diff >= MIN_WIDTHS.editor) editorPx += diff;
+                else if (showTOC) tocPx += diff;
+            }
+
+            paneEls.editor().style.flex = showEditor ? `0 0 ${editorPx}px` : '0 0 0px';
+            paneEls.preview().style.flex = showPreview ? `0 0 ${previewPx}px` : '0 0 0px';
+            paneEls.toc().style.flex = showTOC ? `0 0 ${tocPx}px` : '0 0 0px';
+
+            paneEls.editor().style.display = showEditor ? 'flex' : 'none';
+            paneEls.preview().style.display = showPreview ? 'flex' : 'none';
+            paneEls.toc().style.display = showTOC ? 'flex' : 'none';
+
+            const r1 = $('resizer1'), r2 = $('resizer2');
+            r1.style.display = (showEditor && showPreview) ? 'block' : 'none';
+            r2.style.display = ((showEditor || showPreview) && showTOC) ? 'block' : 'none';
+        }
+
         function updatePanels() {
-            const editorPanel = editor.parentElement;
-            const previewPanel = viewer.parentElement;
-            const tocPanel = $('tocPanel');
-            const grid = editorPanel.parentElement;
-            editorPanel.classList.toggle('hidden', !state.showEditor);
-            previewPanel.classList.toggle('hidden', !state.showPreview);
-            tocPanel.classList.toggle('is-visible', state.showTOC);
-            const columns = Number(state.showEditor) + Number(state.showPreview) + Number(state.showTOC);
-            const share = columns ? 12 / columns : 12;
-            const xl = window.matchMedia('(min-width: 1280px)').matches;
-            editorPanel.style.gridColumn = xl && state.showEditor ? `span ${share} / span ${share}` : 'auto';
-            previewPanel.style.gridColumn = xl && state.showPreview ? `span ${share} / span ${share}` : 'auto';
-            tocPanel.style.gridColumn = xl && state.showTOC ? `span ${share} / span ${share}` : 'auto';
             $('editToggle').textContent = state.showEditor ? '隱藏編輯' : '顯示編輯';
             $('previewToggle').textContent = state.showPreview ? '隱藏預覽' : '顯示預覽';
-            $('editToggle').setAttribute('aria-pressed', String(state.showEditor)); $('previewToggle').setAttribute('aria-pressed', String(state.showPreview));
+            $('editToggle').setAttribute('aria-pressed', String(state.showEditor));
+            $('previewToggle').setAttribute('aria-pressed', String(state.showPreview));
+            applyPaneWidths(currentWidths);
         }
+
+        let currentWidths = prefs.widths && typeof prefs.widths.editor === 'number'
+            ? { ...DEFAULT_WIDTHS, ...prefs.widths }
+            : { ...DEFAULT_WIDTHS };
+
         $('editToggle').onclick = () => { state.showEditor = !state.showEditor; updatePanels(); };
-        $('previewToggle').onclick = () => { state.showPreview = !state.showPreview; updatePanels(); }; $('tocToggle').onclick = () => {
+        $('previewToggle').onclick = () => { state.showPreview = !state.showPreview; updatePanels(); };
+
+        function toggleTOC() {
             state.showTOC = !state.showTOC;
-            $('tocContainer').classList.toggle('hidden', !state.showTOC); $('tocToggle').textContent = state.showTOC ? '收合' : '展開';
-            $('tocToggle').setAttribute('aria-expanded', String(state.showTOC));
+            const btn = $('tocToggleTop');
+            btn.textContent = state.showTOC ? '隱藏導覽' : '顯示導覽';
+            btn.setAttribute('aria-expanded', String(state.showTOC));
             updatePanels();
-        };
+        }
+        $('tocToggleTop').onclick = toggleTOC;
+
+        /* ---------- 拖曳霸（px 計算） ---------- */
+        function initResizers() {
+            const container = $('resizerContainer');
+            const r1 = $('resizer1');
+            const r2 = $('resizer2');
+
+            let drag = null;
+
+            function onDown(e, which) {
+                const cRect = container.getBoundingClientRect();
+                drag = {
+                    which,
+                    startX: e.clientX,
+                    containerRect: cRect,
+                    editorW: paneEls.editor().offsetWidth,
+                    previewW: paneEls.preview().offsetWidth,
+                    tocW: paneEls.toc().offsetWidth
+                };
+                r1.classList.add('dragging');
+                r2.classList.add('dragging');
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+                e.preventDefault();
+            }
+
+            function onMove(e) {
+                if (!drag) return;
+                const dx = e.clientX - drag.startX;
+                const total = drag.containerRect.width;
+                if (!total) return;
+
+                let { editorW, previewW, tocW } = drag;
+                const showEditor = state.showEditor;
+                const showPreview = state.showPreview;
+                const showTOC = state.showTOC;
+
+                if (drag.which === 'resizer1') {
+                    let newEditor = editorW + dx;
+                    let newPreview = previewW - dx;
+                    if (newEditor < MIN_WIDTHS.editor) { newEditor = MIN_WIDTHS.editor; newPreview = editorW + previewW - MIN_WIDTHS.editor; }
+                    if (newPreview < MIN_WIDTHS.preview) { newPreview = MIN_WIDTHS.preview; newEditor = editorW + previewW - MIN_WIDTHS.preview; }
+                    editorW = newEditor;
+                    previewW = newPreview;
+                } else if (drag.which === 'resizer2') {
+                    if (showPreview) {
+                        let newPreview = previewW + dx;
+                        let newTOC = tocW - dx;
+                        if (newPreview < MIN_WIDTHS.preview) { newPreview = MIN_WIDTHS.preview; newTOC = previewW + tocW - MIN_WIDTHS.preview; }
+                        if (newTOC < MIN_WIDTHS.toc) { newTOC = MIN_WIDTHS.toc; newPreview = previewW + tocW - MIN_WIDTHS.toc; }
+                        previewW = newPreview;
+                        tocW = newTOC;
+                    } else if (showEditor) {
+                        let newEditor = editorW + dx;
+                        let newTOC = tocW - dx;
+                        if (newEditor < MIN_WIDTHS.editor) { newEditor = MIN_WIDTHS.editor; newTOC = editorW + tocW - MIN_WIDTHS.editor; }
+                        if (newTOC < MIN_WIDTHS.toc) { newTOC = MIN_WIDTHS.toc; newEditor = editorW + tocW - MIN_WIDTHS.toc; }
+                        editorW = newEditor;
+                        tocW = newTOC;
+                    }
+                }
+
+                paneEls.editor().style.flex = showEditor ? `0 0 ${Math.round(editorW)}px` : '0 0 0px';
+                paneEls.preview().style.flex = showPreview ? `0 0 ${Math.round(previewW)}px` : '0 0 0px';
+                paneEls.toc().style.flex = showTOC ? `0 0 ${Math.round(tocW)}px` : '0 0 0px';
+            }
+
+            function onUp() {
+                if (drag) {
+                    const total = paneEls.editor().offsetWidth + paneEls.preview().offsetWidth + paneEls.toc().offsetWidth || 1;
+                    currentWidths = {
+                        editor: paneEls.editor().offsetWidth / total,
+                        preview: paneEls.preview().offsetWidth / total,
+                        toc: paneEls.toc().offsetWidth / total
+                    };
+                    savePrefs();
+                }
+                drag = null;
+                r1.classList.remove('dragging');
+                r2.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            }
+
+            r1.addEventListener('mousedown', e => onDown(e, 'resizer1'));
+            r2.addEventListener('mousedown', e => onDown(e, 'resizer2'));
+
+            window.addEventListener('resize', () => {
+                applyPaneWidths(currentWidths);
+            });
+        }
+
+        /* ---------- 選單 ---------- */
         const gear = $('toolsGear'), toolsMenu = $('toolsMenu');
         gear.onclick = () => {
             const open = gear.getAttribute('aria-expanded') !== 'true';
@@ -658,9 +942,8 @@
                 toolsMenu.classList.add('hidden');
             }
         });
-        updatePanels();
-        window.addEventListener('resize', updatePanels);
 
+        /* ---------- 檔案樹 ---------- */
         async function rebuildTree() {
             tree.replaceChildren();
             if (state.dir) {
@@ -671,21 +954,19 @@
                 if (state.active) activate(state.active);
             } else state.files.forEach(item => addRow(item));
         }
+
         function validName(value) {
             let name = value.trim().replace(/[\\/:*?"<>|]/g, '-');
             if (name && !/\.(md|markdown|txt)$/i.test(name)) name += '.md';
             return name;
         }
+
         async function chooseTargetDirectory() {
             if (!('showDirectoryPicker' in window)) throw Error('請使用支援資料夾存取的 Chrome／Edge');
             return await window.showDirectoryPicker({ mode: 'readwrite', ...(state.dir ? { startIn: state.dir } : {}) });
         }
 
-
-        // 側邊欄收合切換
-        $('toggleSidebar').onclick = () => {
-            sidebar.classList.toggle('collapsed');
-        };
+        $('toggleSidebar').onclick = () => sidebar.classList.toggle('collapsed');
 
         function addRow(item, parent = tree) {
             const row = document.createElement('button');
@@ -700,13 +981,15 @@
             name.textContent = item.name;
             row.append(icon, name);
             row.onclick = () => openNote(item);
-            parent.append(row)
+            parent.append(row);
         }
 
         async function scan(dir, path = '', parent = tree) {
             const entries = [];
             for await (const e of dir.values()) entries.push(e);
-            entries.sort((a, b) => a.kind === b.kind ? a.name.localeCompare(b.name, undefined, { numeric: true }) : a.kind === 'directory' ? -1 : 1);
+            entries.sort((a, b) => a.kind === b.kind
+                ? a.name.localeCompare(b.name, undefined, { numeric: true })
+                : a.kind === 'directory' ? -1 : 1);
             for (const e of entries) {
                 const p = path ? `${path}/${e.name}` : e.name;
                 if (e.kind === 'directory') {
@@ -722,11 +1005,11 @@
                     d.append(s, child);
                     s.onclick = () => setTimeout(() => s.textContent = `${d.open ? '▾' : '▸'} ${e.name}`, 0);
                     parent.append(d);
-                    await scan(e, p, child)
+                    await scan(e, p, child);
                 } else if (/\.(md|markdown|txt)$/i.test(e.name)) {
                     const item = { name: e.name, path: p, handle: e, parentHandle: dir };
                     state.files.push(item);
-                    addRow(item, parent)
+                    addRow(item, parent);
                 }
             }
         }
@@ -739,7 +1022,10 @@
             storeHandle('activeFile', item.handle);
         }
 
-        async function confirmDiscard() { if (!state.dirty) return true; return confirm('目前筆記有尚未儲存的修改。要放棄修改並繼續嗎？') }
+        async function confirmDiscard() {
+            if (!state.dirty) return true;
+            return confirm('目前筆記有尚未儲存的修改。要放棄修改並繼續嗎？');
+        }
 
         async function openNote(item) {
             if (!await confirmDiscard()) return;
@@ -758,18 +1044,22 @@
             }
         }
 
-        // 渲染 Markdown 並自動產生標題導覽列
         function render() {
-            const source = editor.value.replace(/\[\[([^\]\vert{}]+)(?:\Vert{}([^\]]+))?\]\]/g, (_, target, label) => `[${label || target}](wiki:${encodeURIComponent(target.trim())})`);
+            const source = editor.value.replace(/\[\[([^\]\vert{}]+)(?:\Vert{}([^\]]+))?\]\]/g,
+                (_, target, label) => `[${label || target}](wiki:${encodeURIComponent(target.trim())})`);
             viewer.innerHTML = DOMPurify.sanitize(marked.parse(source, { gfm: true }), { USE_PROFILES: { html: true } });
             viewer.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
 
             viewer.querySelectorAll('a[href^="wiki:"]').forEach(a => {
-                let t = decodeURIComponent(a.getAttribute('href').slice(5)).replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase();
-                const match = state.files.find(f => f.name.replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase() === t || f.path.replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase() === t);
+                let t = decodeURIComponent(a.getAttribute('href').slice(5))
+                    .replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase();
+                const match = state.files.find(f =>
+                    f.name.replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase() === t ||
+                    f.path.replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase() === t
+                );
                 if (match) {
                     a.href = '#';
-                    a.onclick = e => { e.preventDefault(); openNote(match) }
+                    a.onclick = e => { e.preventDefault(); openNote(match) };
                 } else {
                     a.removeAttribute('href');
                     a.title = '找不到對應筆記';
@@ -779,7 +1069,6 @@
             generateTOC();
         }
 
-        // 自動生成標題導覽列與點擊跳轉
         function generateTOC() {
             tocContainer.innerHTML = '';
             const headings = viewer.querySelectorAll('h1, h2, h3, h4, h5, h6');
@@ -787,20 +1076,14 @@
                 tocContainer.innerHTML = '<span class="text-xs" style="color:var(--muted)">尚無標題</span>';
                 return;
             }
-
             headings.forEach((heading, index) => {
-                if (!heading.id) {
-                    heading.id = `heading-${index}`;
-                }
+                if (!heading.id) heading.id = `heading-${index}`;
                 const link = document.createElement('a');
                 link.href = `#${heading.id}`;
                 link.className = 'toc-item';
                 link.textContent = heading.textContent;
-
-                // 根據標題層級縮排
                 const level = parseInt(heading.tagName.substring(1));
                 link.style.paddingLeft = `${(level - 1) * 10}px`;
-
                 link.onclick = (e) => {
                     e.preventDefault();
                     heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -844,12 +1127,15 @@
         $('saveAsBtn').onclick = async () => {
             try {
                 if (!('showSaveFilePicker' in window)) throw Error('瀏覽器不支援另存新檔');
-                const handle = await window.showSaveFilePicker({ suggestedName: state.active?.name || '新筆記.md', types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md'] } }] });
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: state.active?.name || '新筆記.md',
+                    types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md'] } }]
+                });
                 await writeHandle(handle, editor.value);
                 const file = await handle.getFile();
                 const item = { name: file.name, path: file.name, handle, parentHandle: state.dir };
                 state.files.push(item);
-                await rebuildTree(); // 另存新檔後立即刷新樹狀圖
+                await rebuildTree();
                 activate(item);
                 state.content = editor.value;
                 setDirty(false);
@@ -883,7 +1169,7 @@
                 const prefix = item.path.includes('/') ? item.path.slice(0, item.path.lastIndexOf('/') + 1) : '';
                 item.path = prefix + name;
                 activate(item);
-                await rebuildTree(); // 改名後立即重新掃描並更新列表
+                await rebuildTree();
                 setStatus('檔名已更新');
             } catch (e) { setStatus(`改名失敗：${e.message}`); }
         };
@@ -907,7 +1193,7 @@
                 item.path = `${target.name}/${item.name}`;
                 state.content = await file.text(); editor.value = state.content; setDirty(false);
                 activate(item);
-                await rebuildTree(); // 移動後立即重新掃描並更新列表
+                await rebuildTree();
                 setStatus(`已移動至「${target.name}」`);
             } catch (e) { if (e.name !== 'AbortError') setStatus(`移動失敗：${e.message}`); }
         };
@@ -925,15 +1211,19 @@
                     parentHandle = target;
                     handle = await target.getFileHandle(name, { create: true });
                 } else if ('showSaveFilePicker' in window) {
-                    handle = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md'] } }] });
+                    handle = await window.showSaveFilePicker({
+                        suggestedName: name,
+                        types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md'] } }]
+                    });
                 } else throw Error('請先開啟資料夾，或使用支援另存新檔的 Chrome／Edge');
 
-                // 建立檔案後直接呼叫 rebuildTree() 重新整理整棵目錄樹
                 await rebuildTree();
 
-                // 尋找剛建立好的檔案項目並啟用
-                const newPath = parentHandle && state.dir ? (parentHandle === state.dir ? name : `${parentHandle.name}/${name}`) : name;
-                const createdItem = state.files.find(f => f.path === newPath) || { name: handle.name || name, path: newPath, handle, parentHandle };
+                const newPath = parentHandle && state.dir
+                    ? (parentHandle === state.dir ? name : `${parentHandle.name}/${name}`)
+                    : name;
+                const createdItem = state.files.find(f => f.path === newPath)
+                    || { name: handle.name || name, path: newPath, handle, parentHandle };
 
                 state.content = '';
                 editor.value = '';
@@ -970,13 +1260,15 @@
         $('openFile').onclick = async () => {
             if (!await confirmDiscard()) return;
             try {
-                const [handle] = await window.showOpenFilePicker({ types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md', '.markdown'], 'text/plain': ['.txt'] } }] });
+                const [handle] = await window.showOpenFilePicker({
+                    types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md', '.markdown'], 'text/plain': ['.txt'] } }]
+                });
                 let item = state.files.find(f => f.handle === handle);
                 if (!item) {
                     const f = await handle.getFile();
                     item = { name: f.name, path: f.name, handle, parentHandle: state.dir };
                     state.files.push(item);
-                    await rebuildTree(); // 確保新開檔案也會被重整進目錄
+                    await rebuildTree();
                 }
                 await openNote(item);
             } catch (e) {
@@ -997,7 +1289,14 @@
                 }
             });
         };
+
+        /* ---------- 初始化 ---------- */
+        initResizers();
+        updatePanels();
         restoreLastOpen();
+
+        requestAnimationFrame(() => applyPaneWidths(currentWidths));
+        window.addEventListener('resize', () => applyPaneWidths(currentWidths));
     </script>
 </body>
 
