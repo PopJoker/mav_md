@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#f7f8fc">
+    <title>MavMD｜Markdown 工作台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+    <style>
+        :root {
+            --accent: #6558d3;
+            --accent-soft: #efedff;
+            --surface: #fff;
+            --canvas: #f7f8fc;
+            --ink: #263148;
+            --muted: #818ba0;
+            --line: #e7e9f0;
+            color-scheme: light
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+            background: var(--canvas);
+            color: var(--ink)
+        }
+
+        .app-header,
+        .sidebar,
+        .toolbar {
+            background: var(--surface)
+        }
+
+        .app-header,
+        .sidebar,
+        .sidebar-head,
+        .statusbar,
+        .toolbar {
+            border-color: var(--line) !important
+        }
+
+        .sidebar {
+            border-right: 1px solid var(--line);
+            transition: width 0.2s ease, transform 0.2s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 0 !important;
+            min-width: 0 !important;
+            overflow: hidden;
+            border-right: none;
+        }
+
+        .sidebar-head {
+            border-bottom: 1px solid var(--line)
+        }
+
+        .toolbar {
+            border-bottom: 1px solid var(--line)
+        }
+
+        .brand-mark,
+        .primary {
+            background: var(--accent) !important;
+            color: white !important
+        }
+
+        .brand-accent {
+            color: var(--accent) !important
+        }
+
+        .accent-text {
+            color: var(--accent) !important
+        }
+
+        .soft-bg {
+            background: var(--accent-soft) !important;
+            color: var(--accent) !important
+        }
+
+        .ghost {
+            border: 1px solid var(--line);
+            background: var(--surface);
+            color: var(--ink);
+            transition: background-color .15s, border-color .15s
+        }
+
+        .ghost:hover {
+            background: var(--canvas)
+        }
+
+        .tree-row {
+            min-width: 0
+        }
+
+        .tree-row[aria-current=true] {
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-weight: 600
+        }
+
+        .tree-row:hover {
+            background: var(--canvas)
+        }
+
+        .tree-row span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap
+        }
+
+        .scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent
+        }
+
+        .scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px
+        }
+
+        .scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px
+        }
+
+        #search:focus,
+        #editor:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px var(--accent-soft);
+            border-color: var(--accent)
+        }
+
+        #editor {
+            font: 14px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace;
+            tab-size: 2;
+            resize: none;
+            height: 100%;
+        }
+
+        .markdown-body {
+            color: var(--ink);
+            line-height: 1.85;
+            overflow-wrap: anywhere
+        }
+
+        .markdown-body h1,
+        .markdown-body h2,
+        .markdown-body h3,
+        .markdown-body h4 {
+            color: var(--ink);
+            font-weight: 700;
+            line-height: 1.35;
+            margin: 1.8em 0 .7em
+        }
+
+        .markdown-body h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: .45em;
+            margin-top: 0
+        }
+
+        .markdown-body h2 {
+            font-size: 1.55rem;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: .35em
+        }
+
+        .markdown-body h3 {
+            font-size: 1.25rem
+        }
+
+        .markdown-body p,
+        .markdown-body ul,
+        .markdown-body ol,
+        .markdown-body blockquote,
+        .markdown-body table,
+        .markdown-body pre {
+            margin: 0 0 1.15em
+        }
+
+        .markdown-body ul,
+        .markdown-body ol {
+            padding-left: 1.6em
+        }
+
+        .markdown-body ul {
+            list-style: disc
+        }
+
+        .markdown-body ol {
+            list-style: decimal
+        }
+
+        .markdown-body blockquote {
+            border-left: 3px solid var(--accent);
+            background: var(--canvas);
+            padding: .7em 1em;
+            border-radius: 0 8px 8px 0
+        }
+
+        .markdown-body code {
+            background: #f1f2f7;
+            border-radius: 4px;
+            padding: .15em .35em;
+            font-size: .9em
+        }
+
+        .markdown-body pre {
+            background: #f8f9fc;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 1em;
+            overflow: auto
+        }
+
+        .markdown-body pre code {
+            background: none;
+            padding: 0
+        }
+
+        .markdown-body table {
+            border-collapse: collapse;
+            width: 100%;
+            display: block;
+            overflow: auto
+        }
+
+        .markdown-body th,
+        .markdown-body td {
+            border: 1px solid var(--line);
+            padding: .55em .8em;
+            text-align: left
+        }
+
+        .markdown-body th {
+            background: var(--canvas)
+        }
+
+        .markdown-body a {
+            color: var(--accent);
+            text-decoration: underline;
+            text-underline-offset: 3px
+        }
+
+        .markdown-body img {
+            max-width: 100%;
+            border-radius: 8px
+        }
+
+        .markdown-body hr {
+            border: 0;
+            border-top: 1px solid var(--line);
+            margin: 2em 0
+        }
+
+        input[type=color] {
+            width: 34px;
+            height: 30px;
+            padding: 2px;
+            border: 1px solid var(--line);
+            border-radius: 7px;
+            background: var(--surface);
+            cursor: pointer
+        }
+
+        button,
+        a {
+            transition: background-color .15s, color .15s, border-color .15s, filter .15s
+        }
+
+        .primary:hover {
+            filter: brightness(1.06)
+        }
+
+        .gear-button {
+            display: grid;
+            place-items: center;
+            width: 42px;
+            height: 42px;
+        }
+
+        .gear-icon {
+            width: 22px;
+            height: 22px;
+            stroke: currentColor;
+            stroke-width: 1.7;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: transform .38s cubic-bezier(.2, .8, .2, 1);
+        }
+
+        .gear-button[aria-expanded="true"] .gear-icon {
+            transform: rotate(90deg);
+        }
+
+        .tools-menu {
+            background: var(--surface);
+            border-color: var(--line);
+            transform-origin: top right;
+        }
+
+        .tools-menu:not(.hidden) {
+            animation: menu-in .18s ease-out both;
+        }
+
+        #tocPanel {
+            display: none;
+        }
+
+        @media(min-width:1280px) {
+            #tocPanel.is-visible {
+                display: flex;
+            }
+        }
+
+        .menu-action {
+            display: block;
+            width: 100%;
+            text-align: left;
+            margin: 3px 0;
+        }
+
+        @keyframes menu-in {
+            from {
+                opacity: 0;
+                transform: translateY(-5px) scale(.97);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* 導覽列樣式 */
+        .toc-item {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--muted);
+            font-size: 13px;
+            text-decoration: none;
+            padding: 3px 0;
+            transition: color 0.15s;
+        }
+
+        .toc-item:hover {
+            color: var(--accent);
+        }
+
+        @media(max-width:640px) {
+            .sidebar {
+                width: 38vw !important;
+                min-width: 135px
+            }
+
+            #mainContent {
+                padding: 1rem !important
+            }
+
+            .markdown-body h1 {
+                font-size: 1.6rem
+            }
+
+            .brand-subtitle {
+                display: none
+            }
+        }
+    </style>
+</head>
+
+<body class="h-screen overflow-hidden flex flex-col">
+    <!-- Topbar (App Header) -->
+    <header class="app-header h-16 shrink-0 border-b px-4 sm:px-6 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+            <button id="toggleSidebar" class="ghost rounded-lg p-2 text-sm" title="收合側邊欄">☰</button>
+            <div class="brand-mark w-9 h-9 rounded-xl grid place-items-center font-bold text-lg">M</div>
+            <div class="min-w-0">
+                <h1 class="font-bold leading-tight text-[15px]">Mav<span class="brand-accent">MD</span></h1>
+                <p class="brand-subtitle text-[11px]" style="color:var(--muted)">Markdown 本機工作台</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+            <button id="openFolder" class="primary rounded-lg px-3 py-2 text-sm font-medium">開啟資料夾</button>
+            <button id="openFile" class="ghost rounded-lg px-3 py-2 text-sm">開啟檔案</button>
+            <button id="newFile" class="ghost rounded-lg px-3 py-2 text-sm">新增筆記</button>
+
+            <!-- 外觀設定移至 Topbar -->
+            <details class="relative">
+                <summary class="ghost cursor-pointer list-none rounded-lg px-3 py-2 text-sm flex items-center gap-1">
+                    外觀</summary>
+                <div class="absolute right-0 mt-2 w-64 rounded-xl border bg-white p-4 shadow-xl z-50"
+                    style="border-color:var(--line);background:var(--surface)!important">
+                    <p class="mb-3 text-sm font-semibold">自訂介面顏色</p>
+                    <label class="mb-3 flex items-center justify-between text-sm">強調色<input id="accentColor"
+                            type="color" value="#6558d3"></label>
+                    <label class="mb-3 flex items-center justify-between text-sm">背景色<input id="backgroundColor"
+                            type="color" value="#f7f8fc"></label>
+                    <label class="mb-3 flex items-center justify-between text-sm">面板色<input id="surfaceColor"
+                            type="color" value="#ffffff"></label>
+                    <label class="mb-3 flex items-center justify-between text-sm">文字色<input id="textColor" type="color"
+                            value="#263148"></label>
+                    <button id="resetColors" class="ghost w-full rounded-lg px-3 py-2 text-xs">還原預設配色</button>
+                    <p class="mt-2 text-[11px] leading-5" style="color:var(--muted)">配色會保存在此瀏覽器的本機儲存空間。</p>
+                </div>
+            </details>
+        </div>
+    </header>
+
+    <div class="flex flex-1 min-h-0">
+        <!-- 側邊欄 -->
+        <aside id="sidebar" class="sidebar w-72 shrink-0 flex flex-col">
+            <div class="sidebar-head p-3">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="text-xs font-semibold tracking-wide">筆記庫</span>
+                    <span id="folderName" class="truncate text-xs" style="color:var(--muted)">尚未開啟</span>
+                </div>
+                <input id="search" type="search" placeholder="搜尋筆記…" class="w-full rounded-lg border px-3 py-2 text-sm"
+                    style="background:var(--canvas);border-color:var(--line)">
+            </div>
+            <nav id="fileTree" class="scrollbar flex-1 overflow-y-auto p-2" aria-label="筆記目錄">
+                <div class="px-3 py-8 text-center text-sm leading-6" style="color:var(--muted)">開啟資料夾或建立新筆記，開始使用。</div>
+            </nav>
+            <div class="statusbar border-t px-3 py-2 text-xs flex flex-col gap-2" style="color:var(--muted)"><span
+                    id="status">內容只在本機讀寫</span><button id="resumeLastBtn"
+                    class="ghost hidden rounded-lg px-2 py-1 text-xs" type="button">重新授權並恢復上次項目</button></div>
+        </aside>
+
+        <!-- 主內容區 (滿版雙欄：左編輯、右預覽 + 導覽列) -->
+        <main id="mainContent" class="scrollbar flex-1 min-w-0 overflow-y-auto p-4 sm:p-6">
+            <div id="workspace" class="hidden h-full flex flex-col">
+                <!-- 檔案工具列 (保留儲存、另存、檔名與狀態) -->
+                <div
+                    class="toolbar shrink-0 mb-4 flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 rounded-xl">
+                    <div class="min-w-0">
+                        <h2 id="docTitle" class="truncate text-sm font-semibold"></h2>
+                        <p id="saveState" class="text-xs" style="color:var(--muted)">已儲存</p>
+                    </div>
+                    <div class="relative flex items-center">
+                        <button id="toolsGear" class="gear-button ghost rounded-xl p-2" type="button"
+                            aria-label="開啟編輯設定" aria-expanded="false" title="編輯設定">
+                            <svg class="gear-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z" />
+                                <path
+                                    d="m19.4 15 .05.04a1.8 1.8 0 1 1-2.55 2.55l-.04-.05a1.8 1.8 0 0 0-3.06 1.27v.14a1.8 1.8 0 1 1-3.6 0v-.07a1.8 1.8 0 0 0-3.06-1.27l-.05.05a1.8 1.8 0 1 1-2.54-2.55l.05-.04a1.8 1.8 0 0 0-1.28-3.06h-.13a1.8 1.8 0 1 1 0-3.6h.07a1.8 1.8 0 0 0 1.27-3.06l-.05-.05a1.8 1.8 0 1 1 2.55-2.54l.04.05a1.8 1.8 0 0 0 3.06-1.28v-.13a1.8 1.8 0 1 1 3.6 0v.07a1.8 1.8 0 0 0 3.06 1.27l.05-.05a1.8 1.8 0 1 1 2.54 2.55l-.05.04a1.8 1.8 0 0 0 1.28 3.06h.13a1.8 1.8 0 1 1 0 3.6h-.07A1.8 1.8 0 0 0 19.4 15Z" />
+                            </svg>
+                        </button>
+                        <div id="toolsMenu"
+                            class="tools-menu hidden absolute right-0 top-full mt-2 z-50 min-w-52 rounded-xl border p-2 shadow-xl">
+                            <button id="saveBtn" class="menu-action primary rounded-lg px-3 py-2 text-sm font-medium">儲存
+                                (Ctrl+S)</button>
+                            <button id="saveAsBtn" class="menu-action ghost rounded-lg px-3 py-2 text-sm">另存新檔</button>
+                            <button id="renameBtn" class="menu-action ghost rounded-lg px-3 py-2 text-sm">改檔名</button>
+                            <button id="moveBtn" class="menu-action ghost rounded-lg px-3 py-2 text-sm">移動位置</button>
+                            <button id="editToggle" class="menu-action ghost rounded-lg px-3 py-2 text-sm"
+                                aria-pressed="true">隱藏編輯</button>
+                            <button id="previewToggle" class="menu-action ghost rounded-lg px-3 py-2 text-sm"
+                                aria-pressed="true">隱藏預覽</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 滿版左右雙欄編輯與預覽區 + 標題導覽列 -->
+                <div class="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-12 gap-4 pb-4">
+                    <!-- 左側：Markdown 編輯器 -->
+                    <div class="xl:col-span-5 h-[calc(100vh-220px)] min-h-[400px] flex flex-col">
+                        <textarea id="editor" class="w-full rounded-xl border bg-white p-4 scrollbar"
+                            style="border-color:var(--line);color:var(--ink)" spellcheck="false"
+                            aria-label="Markdown 編輯器"></textarea>
+                    </div>
+
+                    <!-- 右側：即時預覽區 -->
+                    <div class="xl:col-span-5 h-[calc(100vh-220px)] min-h-[400px] rounded-xl border bg-white p-6 overflow-y-auto scrollbar"
+                        style="border-color:var(--line); background:var(--surface)">
+                        <article id="viewer" class="markdown-body"></article>
+                    </div>
+
+                    <!-- 最右側：標題導覽欄 (TOC) -->
+                    <div id="tocPanel"
+                        class="xl:col-span-2 flex-col h-[calc(100vh-220px)] rounded-xl border p-4 overflow-y-auto scrollbar"
+                        style="border-color:var(--line); background:var(--surface)">
+                        <div class="flex items-center justify-between gap-2 mb-3">
+                            <h3 class="text-xs font-bold uppercase tracking-wider" style="color:var(--muted)">導覽列</h3>
+                            <button id="tocToggle" class="ghost rounded-md px-2 py-1 text-xs" type="button"
+                                aria-expanded="true">收合</button>
+                        </div>
+                        <nav id="tocContainer" class="flex flex-col gap-1">
+                            <span class="text-xs" style="color:var(--muted)">尚無標題</span>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 歡迎畫面 -->
+            <section id="welcome" class="mx-auto mt-20 max-w-lg text-center">
+                <div class="brand-mark mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl text-2xl font-bold">M
+                </div>
+                <h2 class="mb-2 text-2xl font-bold">你的筆記，你作主</h2>
+                <p class="text-sm leading-7" style="color:var(--muted)">開啟本機資料夾，左側編輯、右側即時預覽 Markdown 筆記；支援自動標題導覽與自訂介面顏色。
+                </p>
+                <p class="mt-4 text-xs" style="color:var(--muted)">支援 Chrome／Edge；本機檔案存取通常需要 HTTPS 或 localhost。</p>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const $ = id => document.getElementById(id),
+            tree = $('fileTree'),
+            viewer = $('viewer'),
+            editor = $('editor'),
+            tocContainer = $('tocContainer'),
+            sidebar = $('sidebar'),
+            state = { files: [], active: null, dir: null, content: '', dirty: false, showEditor: true, showPreview: true, showTOC: true };
+
+        const defaults = { accent: '#6558d3', background: '#f7f8fc', surface: '#ffffff', text: '#263148' };
+
+        function loadPrefs() { try { return JSON.parse(localStorage.getItem('MavMD設定') || '{}') } catch { return {} } }
+        function savePrefs() { try { localStorage.setItem('MavMD設定', JSON.stringify({ colors: Object.fromEntries(Object.entries(colorInputs).map(([key, input]) => [key, input.value])), folder: state.dir?.name || '' })) } catch { } }
+
+        const colorInputs = { accent: $('accentColor'), background: $('backgroundColor'), surface: $('surfaceColor'), text: $('textColor') };
+
+        function applyColors(colors = {}) {
+            for (const key in defaults) {
+                const value = /^#[0-9a-f]{6}$/i.test(colors[key] || '') ? colors[key] : defaults[key];
+                colorInputs[key].value = value;
+                document.documentElement.style.setProperty(`--${key === 'background' ? 'canvas' : key === 'surface' ? 'surface' : key === 'text' ? 'ink' : 'accent'}`, value);
+                if (key === 'accent') document.documentElement.style.setProperty('--accent-soft', mix(value, '#ffffff', .9));
+                if (key === 'surface') document.documentElement.style.setProperty('--surface', value);
+            }
+        }
+
+        function mix(color, white, amount) { return '#' + [1, 3, 5].map(i => Math.round(parseInt(color.slice(i, i + 2), 16) * (1 - amount) + parseInt(white.slice(i, i + 2), 16) * amount).toString(16).padStart(2, '0')).join('') }
+
+        const prefs = loadPrefs();
+        applyColors(prefs.colors);
+        if (prefs.folder) $('folderName').textContent = prefs.folder;
+
+        // File System Access handles are kept in IndexedDB so the same folder/file can be restored next time.
+        const handleDB = new Promise((resolve, reject) => {
+            const request = indexedDB.open('MavMD檔案記憶', 1);
+            request.onupgradeneeded = () => request.result.createObjectStore('handles');
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        async function storeHandle(key, handle) {
+            try { const db = await handleDB; await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').put(handle, key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); } catch { }
+        }
+        async function getStoredHandle(key) {
+            try { const db = await handleDB; return await new Promise((resolve, reject) => { const req = db.transaction('handles').objectStore('handles').get(key); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); } catch { return null; }
+        }
+        async function permit(handle, fromClick = false) {
+            let permission = await handle.queryPermission({ mode: 'readwrite' });
+            if (permission !== 'granted' && fromClick) permission = await handle.requestPermission({ mode: 'readwrite' });
+            return permission === 'granted';
+        }
+        async function restoreLastOpen(fromClick = false) {
+            const savedDir = await getStoredHandle('directory');
+            const savedFile = await getStoredHandle('activeFile');
+            try {
+                let needsPermission = false;
+                if (savedDir && await permit(savedDir, fromClick)) {
+                    state.dir = savedDir;
+                    $('folderName').textContent = savedDir.name;
+                    tree.replaceChildren();
+                    await scan(savedDir);
+                    setStatus(`${state.files.length} 個筆記 · 已恢復資料夾「${savedDir.name}」`);
+                } else if (savedDir) { needsPermission = true; setStatus('上次的資料夾已記住；瀏覽器需要重新授權才能自動開啟。'); }
+                if (savedFile && await permit(savedFile, fromClick)) {
+                    let item = null;
+                    for (const candidate of state.files) {
+                        try { if (await candidate.handle.isSameEntry(savedFile)) { item = candidate; break; } } catch { }
+                    }
+                    if (!item) {
+                        const f = await savedFile.getFile();
+                        item = { name: f.name, path: f.name, handle: savedFile, parentHandle: null };
+                        state.files.push(item); addRow(item);
+                    }
+                    await openNote(item);
+                    setStatus(`已自動開啟「${item.name}」`);
+                } else if (savedFile) needsPermission = true;
+                $('resumeLastBtn').classList.toggle('hidden', !needsPermission);
+                if (fromClick) $('resumeLastBtn').classList.add('hidden');
+            } catch (e) {
+                $('resumeLastBtn').classList.remove('hidden');
+                setStatus(`恢復上次開啟項目失敗：${e.message}；按下「重新授權」或手動重新開啟。`);
+            }
+        }
+        $('resumeLastBtn').onclick = () => restoreLastOpen(true);
+
+        for (const [key, input] of Object.entries(colorInputs)) {
+            input.addEventListener('input', () => {
+                const c = {};
+                for (const k in colorInputs) c[k] = colorInputs[k].value;
+                applyColors(c);
+                savePrefs();
+            });
+        }
+
+        $('resetColors').onclick = () => { applyColors(defaults); savePrefs() };
+
+        const setStatus = text => $('status').textContent = text;
+
+        function setDirty(value) {
+            state.dirty = value;
+            $('saveState').textContent = value ? '有未儲存的變更' : '已儲存';
+            $('saveState').style.color = value ? '#c2410c' : 'var(--muted)';
+        }
+
+        function showWorkspace() { $('welcome').classList.add('hidden'); $('workspace').classList.remove('hidden') }
+
+        function updatePanels() {
+            const editorPanel = editor.parentElement;
+            const previewPanel = viewer.parentElement;
+            const tocPanel = $('tocPanel');
+            const grid = editorPanel.parentElement;
+            editorPanel.classList.toggle('hidden', !state.showEditor);
+            previewPanel.classList.toggle('hidden', !state.showPreview);
+            tocPanel.classList.toggle('is-visible', state.showTOC);
+            const columns = Number(state.showEditor) + Number(state.showPreview) + Number(state.showTOC);
+            const share = columns ? 12 / columns : 12;
+            const xl = window.matchMedia('(min-width: 1280px)').matches;
+            editorPanel.style.gridColumn = xl && state.showEditor ? `span ${share} / span ${share}` : 'auto';
+            previewPanel.style.gridColumn = xl && state.showPreview ? `span ${share} / span ${share}` : 'auto';
+            tocPanel.style.gridColumn = xl && state.showTOC ? `span ${share} / span ${share}` : 'auto';
+            $('editToggle').textContent = state.showEditor ? '隱藏編輯' : '顯示編輯';
+            $('previewToggle').textContent = state.showPreview ? '隱藏預覽' : '顯示預覽';
+            $('editToggle').setAttribute('aria-pressed', String(state.showEditor)); $('previewToggle').setAttribute('aria-pressed', String(state.showPreview));
+        }
+        $('editToggle').onclick = () => { state.showEditor = !state.showEditor; updatePanels(); };
+        $('previewToggle').onclick = () => { state.showPreview = !state.showPreview; updatePanels(); }; $('tocToggle').onclick = () => {
+            state.showTOC = !state.showTOC;
+            $('tocContainer').classList.toggle('hidden', !state.showTOC); $('tocToggle').textContent = state.showTOC ? '收合' : '展開';
+            $('tocToggle').setAttribute('aria-expanded', String(state.showTOC));
+            updatePanels();
+        };
+        const gear = $('toolsGear'), toolsMenu = $('toolsMenu');
+        gear.onclick = () => {
+            const open = gear.getAttribute('aria-expanded') !== 'true';
+            gear.setAttribute('aria-expanded', String(open));
+            gear.setAttribute('aria-label', open ? '收合編輯設定' : '開啟編輯設定');
+            toolsMenu.classList.toggle('hidden', !open);
+        };
+        document.addEventListener('click', e => {
+            if (!gear.parentElement.contains(e.target)) {
+                gear.setAttribute('aria-expanded', 'false');
+                gear.setAttribute('aria-label', '開啟編輯設定');
+                toolsMenu.classList.add('hidden');
+            }
+        });
+        updatePanels();
+        window.addEventListener('resize', updatePanels);
+
+        async function rebuildTree() {
+            tree.replaceChildren();
+            if (state.dir) {
+                const activePath = state.active?.path;
+                state.files = [];
+                await scan(state.dir);
+                state.active = state.files.find(item => item.path === activePath) || state.active;
+                if (state.active) activate(state.active);
+            } else state.files.forEach(item => addRow(item));
+        }
+        function validName(value) {
+            let name = value.trim().replace(/[\\/:*?"<>|]/g, '-');
+            if (name && !/\.(md|markdown|txt)$/i.test(name)) name += '.md';
+            return name;
+        }
+        async function chooseTargetDirectory() {
+            if (!('showDirectoryPicker' in window)) throw Error('請使用支援資料夾存取的 Chrome／Edge');
+            return await window.showDirectoryPicker({ mode: 'readwrite', ...(state.dir ? { startIn: state.dir } : {}) });
+        }
+
+
+        // 側邊欄收合切換
+        $('toggleSidebar').onclick = () => {
+            sidebar.classList.toggle('collapsed');
+        };
+
+        function addRow(item, parent = tree) {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'tree-row flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm';
+            row.dataset.path = item.path;
+            row.title = item.path;
+            const icon = document.createElement('span');
+            icon.textContent = '▤';
+            icon.className = 'shrink-0';
+            const name = document.createElement('span');
+            name.textContent = item.name;
+            row.append(icon, name);
+            row.onclick = () => openNote(item);
+            parent.append(row)
+        }
+
+        async function scan(dir, path = '', parent = tree) {
+            const entries = [];
+            for await (const e of dir.values()) entries.push(e);
+            entries.sort((a, b) => a.kind === b.kind ? a.name.localeCompare(b.name, undefined, { numeric: true }) : a.kind === 'directory' ? -1 : 1);
+            for (const e of entries) {
+                const p = path ? `${path}/${e.name}` : e.name;
+                if (e.kind === 'directory') {
+                    const d = document.createElement('details');
+                    d.className = 'mb-1';
+                    d.open = path === '';
+                    const s = document.createElement('summary');
+                    s.className = 'cursor-pointer rounded-lg px-3 py-2 text-sm font-medium';
+                    s.textContent = `▸ ${e.name}`;
+                    const child = document.createElement('div');
+                    child.className = 'ml-3 border-l pl-2';
+                    child.style.borderColor = 'var(--line)';
+                    d.append(s, child);
+                    s.onclick = () => setTimeout(() => s.textContent = `${d.open ? '▾' : '▸'} ${e.name}`, 0);
+                    parent.append(d);
+                    await scan(e, p, child)
+                } else if (/\.(md|markdown|txt)$/i.test(e.name)) {
+                    const item = { name: e.name, path: p, handle: e, parentHandle: dir };
+                    state.files.push(item);
+                    addRow(item, parent)
+                }
+            }
+        }
+
+        function activate(item) {
+            state.active = item;
+            tree.querySelectorAll('.tree-row').forEach(r => r.setAttribute('aria-current', String(r.dataset.path === item.path)));
+            $('folderName').textContent = item.name;
+            $('docTitle').textContent = item.path;
+            storeHandle('activeFile', item.handle);
+        }
+
+        async function confirmDiscard() { if (!state.dirty) return true; return confirm('目前筆記有尚未儲存的修改。要放棄修改並繼續嗎？') }
+
+        async function openNote(item) {
+            if (!await confirmDiscard()) return;
+            try {
+                const f = await item.handle.getFile();
+                state.content = await f.text();
+                activate(item);
+                await storeHandle('activeFile', item.handle);
+                editor.value = state.content;
+                setDirty(false);
+                showWorkspace();
+                render();
+                setStatus(`${(f.size / 1024).toFixed(1)} KB · 本機檔案`);
+            } catch (e) {
+                setStatus(`讀取失敗：${e.message}`);
+            }
+        }
+
+        // 渲染 Markdown 並自動產生標題導覽列
+        function render() {
+            const source = editor.value.replace(/\[\[([^\]\vert{}]+)(?:\Vert{}([^\]]+))?\]\]/g, (_, target, label) => `[${label || target}](wiki:${encodeURIComponent(target.trim())})`);
+            viewer.innerHTML = DOMPurify.sanitize(marked.parse(source, { gfm: true }), { USE_PROFILES: { html: true } });
+            viewer.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+
+            viewer.querySelectorAll('a[href^="wiki:"]').forEach(a => {
+                let t = decodeURIComponent(a.getAttribute('href').slice(5)).replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase();
+                const match = state.files.find(f => f.name.replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase() === t || f.path.replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase() === t);
+                if (match) {
+                    a.href = '#';
+                    a.onclick = e => { e.preventDefault(); openNote(match) }
+                } else {
+                    a.removeAttribute('href');
+                    a.title = '找不到對應筆記';
+                }
+            });
+
+            generateTOC();
+        }
+
+        // 自動生成標題導覽列與點擊跳轉
+        function generateTOC() {
+            tocContainer.innerHTML = '';
+            const headings = viewer.querySelectorAll('h1, h2, h3, h4, h5, h6');
+            if (headings.length === 0) {
+                tocContainer.innerHTML = '<span class="text-xs" style="color:var(--muted)">尚無標題</span>';
+                return;
+            }
+
+            headings.forEach((heading, index) => {
+                if (!heading.id) {
+                    heading.id = `heading-${index}`;
+                }
+                const link = document.createElement('a');
+                link.href = `#${heading.id}`;
+                link.className = 'toc-item';
+                link.textContent = heading.textContent;
+
+                // 根據標題層級縮排
+                const level = parseInt(heading.tagName.substring(1));
+                link.style.paddingLeft = `${(level - 1) * 10}px`;
+
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                };
+                tocContainer.appendChild(link);
+            });
+        }
+
+        editor.addEventListener('input', () => {
+            setDirty(editor.value !== state.content);
+            render();
+        });
+
+        async function writeHandle(handle, content) {
+            const writable = await handle.createWritable();
+            await writable.write(content);
+            await writable.close();
+        }
+
+        async function save() {
+            if (!state.active) { setStatus('請先建立或開啟筆記。'); return; }
+            try {
+                await writeHandle(state.active.handle, editor.value);
+                state.content = editor.value;
+                setDirty(false);
+                setStatus('已儲存至本機檔案');
+                render();
+            } catch (e) {
+                setStatus(`儲存失敗：${e.message}。可嘗試「另存新檔」。`);
+            }
+        }
+
+        $('saveBtn').onclick = save;
+        window.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                save();
+            }
+        });
+
+        $('saveAsBtn').onclick = async () => {
+            try {
+                if (!('showSaveFilePicker' in window)) throw Error('瀏覽器不支援另存新檔');
+                const handle = await window.showSaveFilePicker({ suggestedName: state.active?.name || '新筆記.md', types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md'] } }] });
+                await writeHandle(handle, editor.value);
+                const file = await handle.getFile();
+                const item = { name: file.name, path: file.name, handle, parentHandle: state.dir };
+                state.files.push(item);
+                await rebuildTree(); // 另存新檔後立即刷新樹狀圖
+                activate(item);
+                state.content = editor.value;
+                setDirty(false);
+                setStatus('已另存至本機');
+            } catch (e) {
+                if (e.name !== 'AbortError') setStatus(`另存失敗：${e.message}`);
+            }
+        };
+
+        $('renameBtn').onclick = async () => {
+            const item = state.active;
+            if (!item) return;
+            const typed = prompt('輸入新的檔名（可不輸入 .md）：', item.name);
+            if (typed === null) return;
+            const name = validName(typed);
+            if (!name) return;
+            if (name === item.name) return;
+            if (state.files.some(f => f !== item && f.parentHandle === item.parentHandle && f.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+                setStatus('同一資料夾已有相同檔名。'); return;
+            }
+            try {
+                const file = await item.handle.getFile();
+                try {
+                    await item.parentHandle.getFileHandle(name);
+                    setStatus('同名檔案已存在，未改名。'); return;
+                } catch (checkError) { if (checkError.name !== 'NotFoundError') throw checkError; }
+                const replacement = await item.parentHandle.getFileHandle(name, { create: true });
+                await writeHandle(replacement, await file.text());
+                await item.parentHandle.removeEntry(item.name);
+                item.name = name; item.handle = replacement;
+                const prefix = item.path.includes('/') ? item.path.slice(0, item.path.lastIndexOf('/') + 1) : '';
+                item.path = prefix + name;
+                activate(item);
+                await rebuildTree(); // 改名後立即重新掃描並更新列表
+                setStatus('檔名已更新');
+            } catch (e) { setStatus(`改名失敗：${e.message}`); }
+        };
+
+        $('moveBtn').onclick = async () => {
+            const item = state.active;
+            if (!item) return;
+            if (!await confirmDiscard()) return;
+            try {
+                const target = await chooseTargetDirectory();
+                if (target === item.parentHandle) { setStatus('筆記已在所選資料夾中。'); return; }
+                const file = await item.handle.getFile();
+                try {
+                    await target.getFileHandle(item.name);
+                    setStatus('目標資料夾已有相同檔名，未進行移動。'); return;
+                } catch (checkError) { if (checkError.name !== 'NotFoundError') throw checkError; }
+                const nextHandle = await target.getFileHandle(item.name, { create: true });
+                await writeHandle(nextHandle, await file.text());
+                await item.parentHandle.removeEntry(item.name);
+                item.handle = nextHandle; item.parentHandle = target;
+                item.path = `${target.name}/${item.name}`;
+                state.content = await file.text(); editor.value = state.content; setDirty(false);
+                activate(item);
+                await rebuildTree(); // 移動後立即重新掃描並更新列表
+                setStatus(`已移動至「${target.name}」`);
+            } catch (e) { if (e.name !== 'AbortError') setStatus(`移動失敗：${e.message}`); }
+        };
+
+        $('newFile').onclick = async () => {
+            if (!await confirmDiscard()) return;
+            let name = prompt('新筆記名稱（可不輸入 .md）：', '新筆記');
+            if (name === null) return;
+            name = validName(name);
+            if (!name) return;
+            try {
+                let handle, parentHandle = state.dir;
+                if (state.dir) {
+                    const target = await chooseTargetDirectory();
+                    parentHandle = target;
+                    handle = await target.getFileHandle(name, { create: true });
+                } else if ('showSaveFilePicker' in window) {
+                    handle = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md'] } }] });
+                } else throw Error('請先開啟資料夾，或使用支援另存新檔的 Chrome／Edge');
+
+                // 建立檔案後直接呼叫 rebuildTree() 重新整理整棵目錄樹
+                await rebuildTree();
+
+                // 尋找剛建立好的檔案項目並啟用
+                const newPath = parentHandle && state.dir ? (parentHandle === state.dir ? name : `${parentHandle.name}/${name}`) : name;
+                const createdItem = state.files.find(f => f.path === newPath) || { name: handle.name || name, path: newPath, handle, parentHandle };
+
+                state.content = '';
+                editor.value = '';
+                activate(createdItem);
+                showWorkspace();
+                setDirty(false);
+                editor.focus();
+                setStatus('新筆記已建立，編輯後按「儲存」');
+            } catch (e) {
+                if (e.name !== 'AbortError') setStatus(`建立失敗：${e.message}`);
+            }
+        };
+
+        $('openFolder').onclick = async () => {
+            if (!('showDirectoryPicker' in window)) { setStatus('請使用支援資料夾存取的 Chrome／Edge。'); return; }
+            if (!await confirmDiscard()) return;
+            try {
+                const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+                state.dir = dir;
+                await storeHandle('directory', dir);
+                state.files = [];
+                state.active = null;
+                tree.replaceChildren();
+                $('folderName').textContent = dir.name;
+                await scan(dir);
+                savePrefs();
+                setStatus(`${state.files.length} 個筆記 · 資料夾可讀寫`);
+                if (!state.files.length) tree.textContent = '此資料夾還沒有 Markdown 筆記。按「新增筆記」建立。';
+            } catch (e) {
+                if (e.name !== 'AbortError') setStatus(`開啟失敗：${e.message}`);
+            }
+        };
+
+        $('openFile').onclick = async () => {
+            if (!await confirmDiscard()) return;
+            try {
+                const [handle] = await window.showOpenFilePicker({ types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md', '.markdown'], 'text/plain': ['.txt'] } }] });
+                let item = state.files.find(f => f.handle === handle);
+                if (!item) {
+                    const f = await handle.getFile();
+                    item = { name: f.name, path: f.name, handle, parentHandle: state.dir };
+                    state.files.push(item);
+                    await rebuildTree(); // 確保新開檔案也會被重整進目錄
+                }
+                await openNote(item);
+            } catch (e) {
+                if (e.name !== 'AbortError') setStatus(`開啟失敗：${e.message}`);
+            }
+        };
+
+        $('search').oninput = e => {
+            const q = e.target.value.trim().toLocaleLowerCase();
+            tree.querySelectorAll('.tree-row').forEach(r => {
+                r.hidden = !!q && !r.dataset.path.toLocaleLowerCase().includes(q);
+                if (q) {
+                    let n = r.parentElement;
+                    while (n && n !== tree) {
+                        if (n.tagName === 'DETAILS') n.open = true;
+                        n = n.parentElement;
+                    }
+                }
+            });
+        };
+        restoreLastOpen();
+    </script>
+</body>
+
+</html>
