@@ -1,0 +1,2301 @@
+<!doctype html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#f7f8fc">
+    <title>MavMD｜Markdown 工作台</title>
+
+    <!-- PWA Web App Manifest (動態內嵌 Data URL 以達成單一檔案完整運作) -->
+    <link id="pwaManifest" rel="manifest" href="">
+
+    <!-- Tailwind CSS & Markdown/Syntax Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+    <style>
+        :root {
+            --accent: #6558d3;
+            --accent-soft: #efedff;
+            --surface: #fff;
+            --canvas: #f7f8fc;
+            --ink: #263148;
+            --muted: #818ba0;
+            --line: #e7e9f0;
+            color-scheme: light
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+            background: var(--canvas);
+            color: var(--ink)
+        }
+
+        .app-header,
+        .sidebar,
+        .toolbar {
+            background: var(--surface)
+        }
+
+        .app-header,
+        .sidebar,
+        .sidebar-head,
+        .statusbar,
+        .toolbar {
+            border-color: var(--line) !important
+        }
+
+        .sidebar {
+            border-right: 1px solid var(--line);
+            transition: width 0.2s ease, transform 0.2s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 0 !important;
+            min-width: 0 !important;
+            overflow: hidden;
+            border-right: none;
+        }
+
+        .sidebar-head {
+            border-bottom: 1px solid var(--line)
+        }
+
+        .toolbar {
+            border-bottom: 1px solid var(--line)
+        }
+
+        .brand-mark,
+        .primary {
+            background: var(--accent) !important;
+            color: white !important
+        }
+
+        .brand-accent {
+            color: var(--accent) !important
+        }
+
+        .accent-text {
+            color: var(--accent) !important
+        }
+
+        .soft-bg {
+            background: var(--accent-soft) !important;
+            color: var(--accent) !important
+        }
+
+        .ghost {
+            border: 1px solid var(--line);
+            background: var(--surface);
+            color: var(--ink);
+            transition: background-color .15s, border-color .15s
+        }
+
+        .ghost:hover {
+            background: var(--canvas)
+        }
+
+        .tree-row {
+            min-width: 0
+        }
+
+        .tree-row[aria-current=true] {
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-weight: 600
+        }
+
+        .tree-row:hover {
+            background: var(--canvas)
+        }
+
+        .tree-row span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap
+        }
+
+        .scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent
+        }
+
+        .scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px
+        }
+
+        .scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px
+        }
+
+        #search:focus,
+        #editor:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px var(--accent-soft);
+            border-color: var(--accent)
+        }
+
+        #editor {
+            font: 14px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace;
+            tab-size: 2;
+            resize: none;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            flex: 1 1 auto;
+        }
+
+        .markdown-body {
+            color: var(--ink);
+            line-height: 1.85;
+            overflow-wrap: anywhere
+        }
+
+        .markdown-body h1,
+        .markdown-body h2,
+        .markdown-body h3,
+        .markdown-body h4,
+        .markdown-body h5,
+        .markdown-body h6 {
+            color: var(--ink);
+            font-weight: 700;
+            line-height: 1.35;
+            margin: 1.8em 0 .7em
+        }
+
+        .markdown-body h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: .45em;
+            margin-top: 0
+        }
+
+        .markdown-body h2 {
+            font-size: 1.55rem;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: .35em
+        }
+
+        .markdown-body h3 {
+            font-size: 1.25rem
+        }
+
+        .markdown-body h4 {
+            font-size: 1.1rem
+        }
+
+        .markdown-body h5 {
+            font-size: 1rem
+        }
+
+        .markdown-body h6 {
+            font-size: 0.9rem;
+            color: var(--muted)
+        }
+
+        .markdown-body p,
+        .markdown-body ul,
+        .markdown-body ol,
+        .markdown-body blockquote,
+        .markdown-body table,
+        .markdown-body pre {
+            margin: 0 0 1.15em
+        }
+
+        .markdown-body ul,
+        .markdown-body ol {
+            padding-left: 1.6em
+        }
+
+        .markdown-body ul {
+            list-style: disc
+        }
+
+        .markdown-body ol {
+            list-style: decimal
+        }
+
+        .markdown-body li>ul,
+        .markdown-body li>ol {
+            margin-top: .5em;
+            margin-bottom: .5em;
+        }
+
+        .markdown-body blockquote {
+            border-left: 3px solid var(--accent);
+            background: var(--canvas);
+            padding: .7em 1em;
+            border-radius: 0 8px 8px 0
+        }
+
+        .markdown-body blockquote blockquote {
+            margin-top: .8em;
+            border-left-color: var(--muted);
+        }
+
+        .markdown-body code {
+            background: #f1f2f7;
+            border-radius: 4px;
+            padding: .15em .35em;
+            font-size: .9em
+        }
+
+        .markdown-body pre {
+            background: #f8f9fc;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 1em;
+            overflow: auto;
+            position: relative;
+        }
+
+        .markdown-body pre code {
+            background: none;
+            padding: 0
+        }
+
+        .markdown-body table {
+            border-collapse: collapse;
+            width: 100%;
+            display: block;
+            overflow: auto
+        }
+
+        .markdown-body th,
+        .markdown-body td {
+            border: 1px solid var(--line);
+            padding: .55em .8em;
+            text-align: left
+        }
+
+        .markdown-body th {
+            background: var(--canvas)
+        }
+
+        .markdown-body a {
+            color: var(--accent);
+            text-decoration: underline;
+            text-underline-offset: 3px
+        }
+
+        .markdown-body img {
+            max-width: 100%;
+            border-radius: 8px
+        }
+
+        .markdown-body hr {
+            border: 0;
+            border-top: 1px solid var(--line);
+            margin: 2em 0
+        }
+
+        /* 複製按鈕樣式 */
+        .copy-code-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            color: var(--muted);
+        }
+
+        .markdown-body pre:hover .copy-code-btn {
+            opacity: 1;
+        }
+
+        .copy-code-btn:hover {
+            background: var(--surface);
+            color: var(--accent);
+        }
+
+        .copy-code-btn.copied {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        input[type=color] {
+            width: 34px;
+            height: 30px;
+            padding: 2px;
+            border: 1px solid var(--line);
+            border-radius: 7px;
+            background: var(--surface);
+            cursor: pointer
+        }
+
+        button,
+        a {
+            transition: background-color .15s, color .15s, border-color .15s, filter .15s
+        }
+
+        .primary:hover {
+            filter: brightness(1.06)
+        }
+
+        .gear-button {
+            display: grid;
+            place-items: center;
+            width: 42px;
+            height: 42px;
+        }
+
+        .gear-icon {
+            width: 22px;
+            height: 22px;
+            stroke: currentColor;
+            stroke-width: 1.7;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: transform .38s cubic-bezier(.2, .8, .2, 1);
+        }
+
+        .gear-button[aria-expanded="true"] .gear-icon {
+            transform: rotate(90deg);
+        }
+
+        .tools-menu {
+            background: var(--surface);
+            border-color: var(--line);
+            transform-origin: top right;
+        }
+
+        .tools-menu:not(.hidden) {
+            animation: menu-in .18s ease-out both;
+        }
+
+        .menu-action {
+            display: block;
+            width: 100%;
+            text-align: left;
+            margin: 3px 0;
+        }
+
+        @keyframes menu-in {
+            from {
+                opacity: 0;
+                transform: translateY(-5px) scale(.97);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .toc-item {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--muted);
+            font-size: 13px;
+            text-decoration: none;
+            padding: 3px 0;
+            transition: color 0.15s;
+        }
+
+        .toc-item:hover {
+            color: var(--accent);
+        }
+
+        .resizer {
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            position: relative;
+            z-index: 10;
+            transition: background-color 0.2s;
+            flex: 0 0 6px;
+            align-self: stretch;
+        }
+
+        .resizer:hover,
+        .resizer.dragging {
+            background: var(--accent);
+            opacity: 0.5;
+        }
+
+        #resizerContainer {
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            gap: 0;
+            min-height: 0;
+        }
+
+        #editorPane,
+        #previewPane,
+        #tocPane {
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #editorPane,
+        #previewPane {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #tocPane {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #previewPane {
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        #tocPane {
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* 拖曳上傳提示 */
+        #mainContent.dragover::after {
+            content: "放開以開啟檔案或資料夾";
+            position: absolute;
+            inset: 1rem;
+            display: grid;
+            place-items: center;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent);
+            background: rgba(101, 88, 211, 0.08);
+            border: 2px dashed var(--accent);
+            border-radius: 16px;
+            pointer-events: none;
+            z-index: 40;
+        }
+
+        @media(max-width:640px) {
+            .sidebar {
+                width: 38vw !important;
+                min-width: 135px
+            }
+
+            #mainContent {
+                padding: 1rem !important
+            }
+
+            .markdown-body h1 {
+                font-size: 1.6rem
+            }
+
+            .brand-subtitle {
+                display: none
+            }
+        }
+
+        /* 換 icon 精靈 */
+        #iconWizard {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        #iconWizard.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #iconWizard .panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 1.5rem;
+            width: min(420px, 92vw);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+            transform: scale(0.95);
+            transition: transform 0.2s ease;
+        }
+
+        #iconWizard.show .panel {
+            transform: scale(1);
+        }
+
+        #iconWizard .icon-preview {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin: 1rem 0;
+        }
+
+        #iconWizard .icon-preview img {
+            width: 72px;
+            height: 72px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: var(--canvas);
+        }
+
+        #iconWizard .actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 1rem;
+        }
+
+        #iconWizard .btn-cancel {
+            border: 1px solid var(--line);
+            background: var(--surface);
+            color: var(--ink);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        #iconWizard .btn-confirm {
+            background: var(--accent);
+            color: #fff;
+            border: 0;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        #iconWizard .btn-confirm:hover {
+            filter: brightness(1.06);
+        }
+
+        /* 換 icon 後的狀態提示條 */
+        #iconToast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120%);
+            background: var(--ink);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            z-index: 110;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            transition: transform 0.25s cubic-bezier(.2, .8, .2, 1);
+            max-width: 90vw;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #iconToast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #iconToast button {
+            background: var(--accent);
+            color: #fff;
+            border: 0;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+
+<body class="h-screen overflow-hidden flex flex-col">
+    <!-- Topbar (App Header) -->
+    <header class="app-header h-16 shrink-0 border-b px-4 sm:px-6 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+            <button id="toggleSidebar" class="ghost rounded-lg p-2 text-sm" title="收合側邊欄">☰</button>
+            <div class="brand-mark w-9 h-9 rounded-xl grid place-items-center font-bold text-lg">M</div>
+            <div class="min-w-0">
+                <h1 class="font-bold leading-tight text-[15px]">Mav<span class="brand-accent">MD</span></h1>
+                <p class="brand-subtitle text-[11px]" style="color:var(--muted)">Markdown 本機工作台</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+            <!-- PWA 安裝按鈕 -->
+            <button id="installPwaBtn"
+                class="ghost rounded-lg px-3 py-2 text-sm font-medium hidden text-indigo-600 border-indigo-200">安裝
+                App</button>
+            <button id="openFolder" class="primary rounded-lg px-3 py-2 text-sm font-medium">開啟資料夾</button>
+            <button id="downloadExampleBtn" class="ghost rounded-lg px-3 py-2 text-sm">下載範例</button>
+            <button id="openFile" class="ghost rounded-lg px-3 py-2 text-sm">開啟檔案</button>
+            <button id="newFile" class="ghost rounded-lg px-3 py-2 text-sm">新增筆記</button>
+
+            <!-- 外觀設定 -->
+            <details class="relative">
+                <summary class="ghost cursor-pointer list-none rounded-lg px-3 py-2 text-sm flex items-center gap-1">
+                    外觀</summary>
+                <div class="absolute right-0 mt-2 w-64 rounded-xl border bg-white p-4 shadow-xl z-50"
+                    style="border-color:var(--line);background:var(--surface)!important">
+                    <p class="mb-3 text-sm font-semibold">自訂介面顏色</p>
+                    <label class="mb-3 flex items-center justify-between text-sm">強調色<input id="accentColor"
+                            type="color" value="#6558d3"></label>
+                    <label class="mb-3 flex items-center justify-between text-sm">背景色<input id="backgroundColor"
+                            type="color" value="#f7f8fc"></label>
+                    <label class="mb-3 flex items-center justify-between text-sm">面板色<input id="surfaceColor"
+                            type="color" value="#ffffff"></label>
+                    <label class="mb-3 flex items-center justify-between text-sm">文字色<input id="textColor" type="color"
+                            value="#263148"></label>
+                    <button id="resetColors" class="ghost w-full rounded-lg px-3 py-2 text-xs">還原預設配色</button>
+                    <p class="mt-2 text-[11px] leading-5" style="color:var(--muted)">配色會保存在此瀏覽器的本機儲存空間。</p>
+                </div>
+            </details>
+        </div>
+    </header>
+
+    <div class="flex flex-1 min-h-0">
+        <!-- 側邊欄 -->
+        <aside id="sidebar" class="sidebar w-72 shrink-0 flex flex-col">
+            <div class="sidebar-head p-3">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="text-xs font-semibold tracking-wide">筆記庫</span>
+                    <span id="folderName" class="truncate text-xs" style="color:var(--muted)">尚未開啟</span>
+                </div>
+                <input id="search" type="search" placeholder="搜尋筆記…" class="w-full rounded-lg border px-3 py-2 text-sm"
+                    style="background:var(--canvas);border-color:var(--line)">
+            </div>
+            <nav id="fileTree" class="scrollbar flex-1 overflow-y-auto p-2" aria-label="筆記目錄">
+                <div class="px-3 py-8 text-center text-sm leading-6" style="color:var(--muted)">開啟資料夾或建立新筆記，開始使用。</div>
+            </nav>
+            <div class="statusbar border-t px-3 py-2 text-xs flex flex-col gap-2" style="color:var(--muted)"><span
+                    id="status">內容只在本機讀寫 · PWA 離線就緒</span><button id="resumeLastBtn"
+                    class="ghost hidden rounded-lg px-2 py-1 text-xs" type="button">重新授權並恢復上次項目</button></div>
+        </aside>
+
+        <!-- 主內容區 -->
+        <main id="mainContent" class="relative flex-1 min-w-0 min-h-0 flex flex-col p-4 sm:p-6">
+            <div id="workspace" class="hidden flex-1 min-h-0 flex flex-col">
+                <!-- 檔案工具列 -->
+                <div
+                    class="toolbar shrink-0 mb-4 flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 rounded-xl">
+                    <div class="min-w-0">
+                        <h2 id="docTitle" class="truncate text-sm font-semibold"></h2>
+                        <p id="saveState" class="text-xs" style="color:var(--muted)">已儲存</p>
+                    </div>
+                    <div class="relative flex items-center">
+                        <button id="toolsGear" class="gear-button ghost rounded-xl p-2" type="button"
+                            aria-label="開啟編輯設定" aria-expanded="false" title="編輯設定">
+                            <svg class="gear-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z" />
+                                <path
+                                    d="m19.4 15 .05.04a1.8 1.8 0 1 1-2.55 2.55l-.04-.05a1.8 1.8 0 0 0-3.06 1.27v.14a1.8 1.8 0 1 1-3.6 0v-.07a1.8 1.8 0 0 0-3.06-1.27l-.05.05a1.8 1.8 0 1 1-2.54-2.55l.05-.04a1.8 1.8 0 0 0-1.28-3.06h-.13a1.8 1.8 0 1 1 0-3.6h.07a1.8 1.8 0 0 0 1.27-3.06l-.05-.05a1.8 1.8 0 1 1 2.55-2.54l.04.05a1.8 1.8 0 0 0 3.06-1.28v-.13a1.8 1.8 0 1 1 3.6 0v.07a1.8 1.8 0 0 0 3.06 1.27l.05-.05a1.8 1.8 0 1 1 2.54 2.55l-.05.04a1.8 1.8 0 0 0 1.28 3.06h.13a1.8 1.8 0 1 1 0 3.6h-.07A1.8 1.8 0 0 0 19.4 15Z" />
+                            </svg>
+                        </button>
+                        <div id="toolsMenu"
+                            class="tools-menu hidden absolute right-0 top-full mt-2 z-50 min-w-52 rounded-xl border p-2 shadow-xl">
+                            <button id="saveBtn" class="menu-action primary rounded-lg px-3 py-2 text-sm font-medium">儲存
+                                (Ctrl+S)</button>
+                            <button id="saveAsBtn" class="menu-action ghost rounded-lg px-3 py-2 text-sm">另存新檔</button>
+                            <button id="renameBtn" class="menu-action ghost rounded-lg px-3 py-2 text-sm">改檔名</button>
+                            <button id="moveBtn" class="menu-action ghost rounded-lg px-3 py-2 text-sm">移動位置</button>
+                            <button id="editToggle" class="menu-action ghost rounded-lg px-3 py-2 text-sm"
+                                aria-pressed="true">隱藏編輯</button>
+                            <button id="previewToggle" class="menu-action ghost rounded-lg px-3 py-2 text-sm"
+                                aria-pressed="true">隱藏預覽</button>
+                            <button id="tocToggleTop" class="menu-action ghost rounded-lg px-3 py-2 text-sm"
+                                type="button" aria-expanded="true">隱藏導覽</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 三欄彈性拉動編輯與預覽區 + 標題導覽列 -->
+                <div id="resizerContainer" class="flex-1 min-h-0 pb-4">
+                    <!-- 左側：Markdown 編輯器 -->
+                    <div id="editorPane">
+                        <textarea id="editor" class="rounded-xl border bg-white p-4 scrollbar"
+                            style="border-color:var(--line);color:var(--ink)" spellcheck="false"
+                            aria-label="Markdown 編輯器"></textarea>
+                    </div>
+
+                    <!-- 拖曳霸 1 -->
+                    <div id="resizer1" class="resizer mx-2 rounded"></div>
+
+                    <!-- 中間：即時預覽區 -->
+                    <div id="previewPane" class="rounded-xl border bg-white p-6 scrollbar"
+                        style="border-color:var(--line); background:var(--surface);">
+                        <article id="viewer" class="markdown-body"></article>
+                    </div>
+
+                    <!-- 拖曳霸 2 -->
+                    <div id="resizer2" class="resizer mx-2 rounded"></div>
+
+                    <!-- 最右側：標題導覽欄 (TOC) -->
+                    <div id="tocPane" class="rounded-xl border p-4 scrollbar"
+                        style="border-color:var(--line); background:var(--surface);">
+                        <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
+                            <h3 class="text-xs font-bold uppercase tracking-wider" style="color:var(--muted)">導覽列</h3>
+                        </div>
+                        <nav id="tocContainer" class="flex flex-col gap-1">
+                            <span class="text-xs" style="color:var(--muted)">尚無標題</span>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 歡迎畫面 -->
+            <section id="welcome" class="mx-auto mt-20 max-w-lg text-center">
+                <div class="brand-mark mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl text-2xl font-bold">M
+                </div>
+                <h2 class="mb-2 text-2xl font-bold">你的筆記，你作主</h2>
+                <p class="text-sm leading-7" style="color:var(--muted)">開啟本機資料夾，左側編輯、右側即時預覽 Markdown 筆記；支援自動標題導覽、自訂配色與
+                    PWA 離線安裝。
+                </p>
+                <p class="mt-4 text-xs" style="color:var(--muted)">支援 Chrome／Edge；支援離線 PWA
+                    快取與獨立桌面應用程式模式。也可以直接把檔案或整個資料夾拖進來。</p>
+            </section>
+        </main>
+    </div>
+    <!-- 換 icon 精靈 -->
+    <div id="iconWizard" aria-hidden="true">
+        <div class="panel" role="dialog" aria-labelledby="iconWizardTitle">
+            <h3 id="iconWizardTitle" class="font-bold text-base mb-1">同步更新 App 圖示？</h3>
+            <p class="text-sm" style="color:var(--muted)">
+                你剛剛改了強調色，要不要順便把 PWA 的 App 圖示換成新顏色？
+            </p>
+            <div class="icon-preview">
+                <img id="iconPreview192" alt="192 圖示預覽">
+                <img id="iconPreview512" alt="512 圖示預覽">
+            </div>
+            <p class="text-xs" style="color:var(--muted)">
+                ※ 若已經安裝過 App，需要卸載後重新安裝才會生效。
+            </p>
+            <div class="actions">
+                <button class="btn-cancel" id="iconWizardCancel">不要</button>
+                <button class="btn-confirm" id="iconWizardConfirm">更新圖示</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 狀態提示條 -->
+    <div id="iconToast" role="status" aria-live="polite">
+        <span id="iconToastText"></span>
+        <button id="iconToastAction" class="hidden"></button>
+    </div>
+    <script>
+        /* ---------- DOM 查詢捷徑 ---------- */
+        const $ = id => document.getElementById(id);
+
+        /* ---------- 動態設定 Web App Manifest ---------- */
+        // 用 Canvas 產生 PNG Data URL 當 icon（Chrome 接受 PNG Data URL，不接受 SVG Blob URL）
+        function makePngIconDataUrl(color, size) {
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const r = size * 0.166;
+
+            // 圓角方塊背景
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(r, 0);
+            ctx.lineTo(size - r, 0);
+            ctx.quadraticCurveTo(size, 0, size, r);
+            ctx.lineTo(size, size - r);
+            ctx.quadraticCurveTo(size, size, size - r, size);
+            ctx.lineTo(r, size);
+            ctx.quadraticCurveTo(0, size, 0, size - r);
+            ctx.lineTo(0, r);
+            ctx.quadraticCurveTo(0, 0, r, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            // 白字 "M"
+            ctx.fillStyle = '#fff';
+            ctx.font = `bold ${size * 0.57}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('M', size / 2, size * 0.55);
+
+            return canvas.toDataURL('image/png');
+        }
+
+        function buildManifest(accent) {
+            return {
+                "name": "MavMD Markdown 工作台",
+                "short_name": "MavMD",
+                "start_url": "./",
+                "scope": "./",
+                "display": "standalone",
+                "background_color": "#f7f8fc",
+                "theme_color": accent,
+                "icons": [
+                    {
+                        "src": makePngIconDataUrl(accent, 192),
+                        "sizes": "192x192",
+                        "type": "image/png",
+                        "purpose": "any"
+                    },
+                    {
+                        "src": makePngIconDataUrl(accent, 512),
+                        "sizes": "512x512",
+                        "type": "image/png",
+                        "purpose": "any"
+                    }
+                ]
+            };
+        }
+
+        function applyManifest(accent) {
+            const data = buildManifest(accent);
+            $('pwaManifest').href = 'data:application/manifest+json;charset=utf-8,' +
+                encodeURIComponent(JSON.stringify(data));
+            return data;
+        }
+
+        /* ---------- PWA Service Worker 註冊（Data URL） ---------- */
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swCode = `
+                    const CACHE_NAME = 'mavmd-pwa-v4';
+                    const ASSETS = [
+                        './index.html',
+                        'https://cdn.tailwindcss.com',
+                        'https://cdn.jsdelivr.net/npm/marked/marked.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css',
+                        'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js'
+                    ];
+
+                    self.addEventListener('install', event => {
+                        event.waitUntil(
+                            caches.open(CACHE_NAME).then(cache => {
+                                return cache.addAll(ASSETS.map(url => new Request(url, {mode: 'no-cors'}))).catch(() => {});
+                            })
+                        );
+                        self.skipWaiting();
+                    });
+
+                    self.addEventListener('activate', event => {
+                        event.waitUntil(
+                            caches.keys().then(keys => Promise.all(
+                                keys.map(key => {
+                                    if (key !== CACHE_NAME) {
+                                        console.log('[SW] 刪除舊快取:', key);
+                                        return caches.delete(key);
+                                    }
+                                })
+                            )).then(() => self.clients.claim())
+                        );
+                    });
+
+                    self.addEventListener('fetch', event => {
+                        if (event.request.mode === 'navigate') {
+                            event.respondWith(
+                                fetch(event.request).catch(() => caches.match('./index.html'))
+                            );
+                            return;
+                        }
+                        event.respondWith(
+                            caches.match(event.request).then(cached => {
+                                return cached || fetch(event.request).catch(() => {});
+                            })
+                        );
+                    });
+                `;
+                const swDataUrl = 'data:application/javascript;base64,' +
+                    btoa(unescape(encodeURIComponent(swCode)));
+
+                navigator.serviceWorker.register(swDataUrl)
+                    .then(reg => console.log('SW 註冊成功:', reg.scope))
+                    .catch(err => console.error('SW 註冊失敗:', err));
+            });
+        }
+
+        /* 攔截瀏覽器 PWA 安裝提示 */
+        let deferredPrompt = null;
+        const installBtn = $('installPwaBtn');
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            if (installBtn) installBtn.classList.remove('hidden');
+        });
+
+        if (installBtn) {
+            installBtn.onclick = async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installBtn.classList.add('hidden');
+                }
+                deferredPrompt = null;
+            };
+        }
+
+        window.addEventListener('appinstalled', () => {
+            if (installBtn) installBtn.classList.add('hidden');
+            console.log('MavMD PWA 已成功安裝至桌面');
+        });
+
+        /* ---------- 主程式變數與邏輯 ---------- */
+        const tree = $('fileTree'),
+            viewer = $('viewer'),
+            editor = $('editor'),
+            tocContainer = $('tocContainer'),
+            sidebar = $('sidebar'),
+            state = {
+                files: [],
+                active: null,
+                dir: null,
+                content: '',
+                dirty: false,
+                showEditor: true,
+                showPreview: true,
+                showTOC: true
+            };
+
+        const defaults = { accent: '#6558d3', background: '#f7f8fc', surface: '#ffffff', text: '#263148' };
+
+        const colorInputs = {
+            accent: $('accentColor'),
+            background: $('backgroundColor'),
+            surface: $('surfaceColor'),
+            text: $('textColor')
+        };
+
+        function loadPrefs() {
+            try { return JSON.parse(localStorage.getItem('MavMD設定') || '{}') } catch { return {} }
+        }
+
+        function savePrefs() {
+            try {
+                const paneWidths = getPaneWidths();
+                localStorage.setItem('MavMD設定', JSON.stringify({
+                    colors: Object.fromEntries(Object.entries(colorInputs).map(([key, input]) => [key, input.value])),
+                    folder: state.dir?.name || '',
+                    widths: paneWidths
+                }));
+            } catch { }
+        }
+
+        function applyColors(colors = {}) {
+            for (const key in defaults) {
+                const value = /^#[0-9a-f]{6}$/i.test(colors[key] || '') ? colors[key] : defaults[key];
+                colorInputs[key].value = value;
+                document.documentElement.style.setProperty(
+                    `--${key === 'background' ? 'canvas' : key === 'surface' ? 'surface' : key === 'text' ? 'ink' : 'accent'}`,
+                    value
+                );
+                if (key === 'accent') {
+                    document.documentElement.style.setProperty('--accent-soft', mix(value, '#ffffff', .9));
+                    // 同步 meta theme-color
+                    let meta = document.querySelector('meta[name="theme-color"]');
+                    if (!meta) {
+                        meta = document.createElement('meta');
+                        meta.name = 'theme-color';
+                        document.head.appendChild(meta);
+                    }
+                    meta.content = value;
+                }
+                if (key === 'surface') document.documentElement.style.setProperty('--surface', value);
+            }
+        }
+
+        function mix(color, white, amount) {
+            return '#' + [1, 3, 5].map(i =>
+                Math.round(parseInt(color.slice(i, i + 2), 16) * (1 - amount) + parseInt(white.slice(i, i + 2), 16) * amount)
+                    .toString(16).padStart(2, '0')
+            ).join('');
+        }
+
+        const prefs = loadPrefs();
+        applyColors(prefs.colors);
+        if (prefs.folder) $('folderName').textContent = prefs.folder;
+
+        // 用目前的 accent（或預設）產生 manifest
+        const initialAccent = /^#[0-9a-f]{6}$/i.test(prefs.colors?.accent || '')
+            ? prefs.colors.accent
+            : '#6558d3';
+        const manifestData = applyManifest(initialAccent);
+
+        for (const [key, input] of Object.entries(colorInputs)) {
+            input.addEventListener('input', () => {
+                const c = {};
+                for (const k in colorInputs) c[k] = colorInputs[k].value;
+                applyColors(c);
+                savePrefs();
+
+                // 偵測 accent 改變 → 跳換 icon 精靈
+                if (key === 'accent') {
+                    openIconWizard(input.value);
+                }
+            });
+        }
+        $('resetColors').onclick = () => { applyColors(defaults); savePrefs() };
+
+        const handleDB = new Promise((resolve, reject) => {
+            const request = indexedDB.open('MavMD檔案記憶', 1);
+            request.onupgradeneeded = () => request.result.createObjectStore('handles');
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+
+        async function storeHandle(key, handle) {
+            try {
+                const db = await handleDB;
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction('handles', 'readwrite');
+                    tx.objectStore('handles').put(handle, key);
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch { }
+        }
+
+        async function getStoredHandle(key) {
+            try {
+                const db = await handleDB;
+                return await new Promise((resolve, reject) => {
+                    const req = db.transaction('handles').objectStore('handles').get(key);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            } catch { return null; }
+        }
+
+        async function permit(handle, fromClick = false) {
+            let permission = await handle.queryPermission({ mode: 'readwrite' });
+            if (permission !== 'granted' && fromClick) permission = await handle.requestPermission({ mode: 'readwrite' });
+            return permission === 'granted';
+        }
+
+        async function restoreLastOpen(fromClick = false) {
+            const savedDir = await getStoredHandle('directory');
+            const savedFile = await getStoredHandle('activeFile');
+            try {
+                let needsPermission = false;
+                if (savedDir && await permit(savedDir, fromClick)) {
+                    state.dir = savedDir;
+                    $('folderName').textContent = savedDir.name;
+                    tree.replaceChildren();
+                    await scan(savedDir);
+                    setStatus(`${state.files.length} 個筆記 · 已恢復資料夾「${savedDir.name}」`);
+                } else if (savedDir) {
+                    needsPermission = true;
+                    setStatus('上次的資料夾已記住；瀏覽器需要重新授權才能自動開啟。');
+                }
+                if (savedFile && await permit(savedFile, fromClick)) {
+                    let item = null;
+                    for (const candidate of state.files) {
+                        try { if (await candidate.handle.isSameEntry(savedFile)) { item = candidate; break; } } catch { }
+                    }
+                    if (!item) {
+                        const f = await savedFile.getFile();
+                        item = { name: f.name, path: f.name, handle: savedFile, parentHandle: null };
+                        state.files.push(item);
+                        addRow(item);
+                    }
+                    await openNote(item);
+                    setStatus(`已自動開啟「${item.name}」`);
+                } else if (savedFile) needsPermission = true;
+                $('resumeLastBtn').classList.toggle('hidden', !needsPermission);
+                if (fromClick) $('resumeLastBtn').classList.add('hidden');
+            } catch (e) {
+                $('resumeLastBtn').classList.remove('hidden');
+                setStatus(`恢復上次開啟項目失敗：${e.message}；按下「重新授權」或手動重新開啟。`);
+            }
+        }
+        $('resumeLastBtn').onclick = () => restoreLastOpen(true);
+
+        const setStatus = text => $('status').textContent = text;
+
+        function setDirty(value) {
+            state.dirty = value;
+            $('saveState').textContent = value ? '有未儲存的變更' : '已儲存';
+            $('saveState').style.color = value ? '#c2410c' : 'var(--muted)';
+        }
+
+        function showWorkspace() { $('welcome').classList.add('hidden'); $('workspace').classList.remove('hidden') }
+
+        const paneEls = {
+            editor: () => $('editorPane'),
+            preview: () => $('previewPane'),
+            toc: () => $('tocPane')
+        };
+
+        const DEFAULT_WIDTHS = { editor: 0.34, preview: 0.44, toc: 0.22 };
+        const MIN_WIDTHS = { editor: 160, preview: 160, toc: 140 };
+
+        function getPaneWidths() {
+            const c = $('resizerContainer');
+            const total = c.clientWidth || 1;
+            return {
+                editor: paneEls.editor().offsetWidth / total,
+                preview: paneEls.preview().offsetWidth / total,
+                toc: paneEls.toc().offsetWidth / total
+            };
+        }
+
+        function applyPaneWidths(widths) {
+            const container = $('resizerContainer');
+            const total = container.clientWidth;
+            if (!total) return;
+
+            const showEditor = state.showEditor;
+            const showPreview = state.showPreview;
+            const showTOC = state.showTOC;
+
+            const resizers = [];
+            if (showEditor && showPreview) resizers.push($('resizer1'));
+            if ((showEditor || showPreview) && showTOC) resizers.push($('resizer2'));
+
+            const resizerWidth = resizers.reduce((sum, r) => sum + r.offsetWidth + 16, 0);
+            const usable = Math.max(0, total - resizerWidth);
+
+            let w = { ...widths };
+
+            if (!showEditor && showPreview) { w.preview += w.editor; w.editor = 0; }
+            if (!showPreview && showEditor) { w.editor += w.preview; w.preview = 0; }
+            if (!showEditor && !showPreview && showTOC) { w.toc = 1; w.editor = 0; w.preview = 0; }
+            if (!showTOC) { w.toc = 0; }
+
+            const sum = w.editor + w.preview + w.toc || 1;
+            w.editor /= sum; w.preview /= sum; w.toc /= sum;
+
+            let tocPx = showTOC ? Math.round(usable * w.toc) : 0;
+            if (showTOC) tocPx = Math.max(MIN_WIDTHS.toc, tocPx);
+
+            let editorPx = showEditor ? Math.round(usable * w.editor) : 0;
+            let previewPx = showPreview ? Math.round(usable * w.preview) : 0;
+
+            if (showEditor) editorPx = Math.max(MIN_WIDTHS.editor, editorPx);
+            if (showPreview) previewPx = Math.max(MIN_WIDTHS.preview, previewPx);
+
+            let diff = usable - (editorPx + previewPx + tocPx);
+            if (diff !== 0) {
+                if (showPreview && previewPx + diff >= MIN_WIDTHS.preview) previewPx += diff;
+                else if (showEditor && editorPx + diff >= MIN_WIDTHS.editor) editorPx += diff;
+                else if (showTOC) tocPx += diff;
+            }
+
+            paneEls.editor().style.flex = showEditor ? `0 0 ${editorPx}px` : '0 0 0px';
+            paneEls.preview().style.flex = showPreview ? `0 0 ${previewPx}px` : '0 0 0px';
+            paneEls.toc().style.flex = showTOC ? `0 0 ${tocPx}px` : '0 0 0px';
+
+            paneEls.editor().style.display = showEditor ? 'flex' : 'none';
+            paneEls.preview().style.display = showPreview ? 'flex' : 'none';
+            paneEls.toc().style.display = showTOC ? 'flex' : 'none';
+
+            const r1 = $('resizer1'), r2 = $('resizer2');
+            r1.style.display = (showEditor && showPreview) ? 'block' : 'none';
+            r2.style.display = ((showEditor || showPreview) && showTOC) ? 'block' : 'none';
+        }
+
+        function updatePanels() {
+            $('editToggle').textContent = state.showEditor ? '隱藏編輯' : '顯示編輯';
+            $('previewToggle').textContent = state.showPreview ? '隱藏預覽' : '顯示預覽';
+            $('editToggle').setAttribute('aria-pressed', String(state.showEditor));
+            $('previewToggle').setAttribute('aria-pressed', String(state.showPreview));
+            applyPaneWidths(currentWidths);
+        }
+
+        let currentWidths = prefs.widths && typeof prefs.widths.editor === 'number'
+            ? { ...DEFAULT_WIDTHS, ...prefs.widths }
+            : { ...DEFAULT_WIDTHS };
+
+        $('editToggle').onclick = () => { state.showEditor = !state.showEditor; updatePanels(); };
+        $('previewToggle').onclick = () => { state.showPreview = !state.showPreview; updatePanels(); };
+
+        function toggleTOC() {
+            state.showTOC = !state.showTOC;
+            const btn = $('tocToggleTop');
+            btn.textContent = state.showTOC ? '隱藏導覽' : '顯示導覽';
+            btn.setAttribute('aria-expanded', String(state.showTOC));
+            updatePanels();
+        }
+        $('tocToggleTop').onclick = toggleTOC;
+
+        function initResizers() {
+            const container = $('resizerContainer');
+            const r1 = $('resizer1');
+            const r2 = $('resizer2');
+
+            let drag = null;
+
+            function onDown(e, which) {
+                const cRect = container.getBoundingClientRect();
+                drag = {
+                    which,
+                    startX: e.clientX,
+                    containerRect: cRect,
+                    editorW: paneEls.editor().offsetWidth,
+                    previewW: paneEls.preview().offsetWidth,
+                    tocW: paneEls.toc().offsetWidth
+                };
+                r1.classList.add('dragging');
+                r2.classList.add('dragging');
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+                e.preventDefault();
+            }
+
+            function onMove(e) {
+                if (!drag) return;
+                const dx = e.clientX - drag.startX;
+                const total = drag.containerRect.width;
+                if (!total) return;
+
+                let { editorW, previewW, tocW } = drag;
+                const showEditor = state.showEditor;
+                const showPreview = state.showPreview;
+                const showTOC = state.showTOC;
+
+                if (drag.which === 'resizer1') {
+                    let newEditor = editorW + dx;
+                    let newPreview = previewW - dx;
+                    if (newEditor < MIN_WIDTHS.editor) { newEditor = MIN_WIDTHS.editor; newPreview = editorW + previewW - MIN_WIDTHS.editor; }
+                    if (newPreview < MIN_WIDTHS.preview) { newPreview = MIN_WIDTHS.preview; newEditor = editorW + previewW - MIN_WIDTHS.preview; }
+                    editorW = newEditor;
+                    previewW = newPreview;
+                } else if (drag.which === 'resizer2') {
+                    if (showPreview) {
+                        let newPreview = previewW + dx;
+                        let newTOC = tocW - dx;
+                        if (newPreview < MIN_WIDTHS.preview) { newPreview = MIN_WIDTHS.preview; newTOC = previewW + tocW - MIN_WIDTHS.preview; }
+                        if (newTOC < MIN_WIDTHS.toc) { newTOC = MIN_WIDTHS.toc; newPreview = previewW + tocW - MIN_WIDTHS.toc; }
+                        previewW = newPreview;
+                        tocW = newTOC;
+                    } else if (showEditor) {
+                        let newEditor = editorW + dx;
+                        let newTOC = tocW - dx;
+                        if (newEditor < MIN_WIDTHS.editor) { newEditor = MIN_WIDTHS.editor; newTOC = editorW + tocW - MIN_WIDTHS.editor; }
+                        if (newTOC < MIN_WIDTHS.toc) { newTOC = MIN_WIDTHS.toc; newEditor = editorW + tocW - MIN_WIDTHS.toc; }
+                        editorW = newEditor;
+                        tocW = newTOC;
+                    }
+                }
+
+                paneEls.editor().style.flex = showEditor ? `0 0 ${Math.round(editorW)}px` : '0 0 0px';
+                paneEls.preview().style.flex = showPreview ? `0 0 ${Math.round(previewW)}px` : '0 0 0px';
+                paneEls.toc().style.flex = showTOC ? `0 0 ${Math.round(tocW)}px` : '0 0 0px';
+            }
+
+            function onUp() {
+                if (drag) {
+                    const total = paneEls.editor().offsetWidth + paneEls.preview().offsetWidth + paneEls.toc().offsetWidth || 1;
+                    currentWidths = {
+                        editor: paneEls.editor().offsetWidth / total,
+                        preview: paneEls.preview().offsetWidth / total,
+                        toc: paneEls.toc().offsetWidth / total
+                    };
+                    savePrefs();
+                }
+                drag = null;
+                r1.classList.remove('dragging');
+                r2.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            }
+
+            r1.addEventListener('mousedown', e => onDown(e, 'resizer1'));
+            r2.addEventListener('mousedown', e => onDown(e, 'resizer2'));
+
+            window.addEventListener('resize', () => {
+                applyPaneWidths(currentWidths);
+            });
+        }
+
+        const gear = $('toolsGear'), toolsMenu = $('toolsMenu');
+        gear.onclick = () => {
+            const open = gear.getAttribute('aria-expanded') !== 'true';
+            gear.setAttribute('aria-expanded', String(open));
+            gear.setAttribute('aria-label', open ? '收合編輯設定' : '開啟編輯設定');
+            toolsMenu.classList.toggle('hidden', !open);
+        };
+        document.addEventListener('click', e => {
+            if (!gear.parentElement.contains(e.target)) {
+                gear.setAttribute('aria-expanded', 'false');
+                gear.setAttribute('aria-label', '開啟編輯設定');
+                toolsMenu.classList.add('hidden');
+            }
+        });
+
+        async function rebuildTree() {
+            tree.replaceChildren();
+            if (state.dir) {
+                const activePath = state.active?.path;
+                state.files = [];
+                await scan(state.dir);
+                state.active = state.files.find(item => item.path === activePath) || state.active;
+                if (state.active) activate(state.active);
+            } else state.files.forEach(item => addRow(item));
+        }
+
+        function validName(value) {
+            let name = value.trim().replace(/[\\/:*?"<>|]/g, '-');
+            if (name && !/\.(md|markdown|txt)$/i.test(name)) name += '.md';
+            return name;
+        }
+
+        async function chooseTargetDirectory() {
+            if (!('showDirectoryPicker' in window)) throw Error('請使用支援資料夾存取的 Chrome／Edge');
+            return await window.showDirectoryPicker({ mode: 'readwrite', ...(state.dir ? { startIn: state.dir } : {}) });
+        }
+
+        $('toggleSidebar').onclick = () => sidebar.classList.toggle('collapsed');
+
+        function addRow(item, parent = tree) {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'tree-row flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm';
+            row.dataset.path = item.path;
+            row.title = item.path;
+            const icon = document.createElement('span');
+            icon.textContent = '▤';
+            icon.className = 'shrink-0';
+            const name = document.createElement('span');
+            name.textContent = item.name;
+            row.append(icon, name);
+            row.onclick = () => openNote(item);
+            parent.append(row);
+        }
+
+        async function scan(dir, path = '', parent = tree) {
+            const entries = [];
+            for await (const e of dir.values()) entries.push(e);
+            entries.sort((a, b) => a.kind === b.kind
+                ? a.name.localeCompare(b.name, undefined, { numeric: true })
+                : a.kind === 'directory' ? -1 : 1);
+            for (const e of entries) {
+                const p = path ? `${path}/${e.name}` : e.name;
+                if (e.kind === 'directory') {
+                    const d = document.createElement('details');
+                    d.className = 'mb-1';
+                    d.open = path === '';
+                    const s = document.createElement('summary');
+                    s.className = 'cursor-pointer rounded-lg px-3 py-2 text-sm font-medium';
+                    s.textContent = `▸ ${e.name}`;
+                    const child = document.createElement('div');
+                    child.className = 'ml-3 border-l pl-2';
+                    child.style.borderColor = 'var(--line)';
+                    d.append(s, child);
+                    s.onclick = () => setTimeout(() => s.textContent = `${d.open ? '▾' : '▸'} ${e.name}`, 0);
+                    parent.append(d);
+                    await scan(e, p, child);
+                } else if (/\.(md|markdown|txt)$/i.test(e.name)) {
+                    const item = { name: e.name, path: p, handle: e, parentHandle: dir };
+                    state.files.push(item);
+                    addRow(item, parent);
+                }
+            }
+        }
+
+        function activate(item) {
+            state.active = item;
+            tree.querySelectorAll('.tree-row').forEach(r => r.setAttribute('aria-current', String(r.dataset.path === item.path)));
+            $('folderName').textContent = item.name;
+            $('docTitle').textContent = item.path;
+            storeHandle('activeFile', item.handle);
+        }
+
+        async function confirmDiscard() {
+            if (!state.dirty) return true;
+            return confirm('目前筆記有尚未儲存的修改。要放棄修改並繼續嗎？');
+        }
+
+        async function openNote(item) {
+            if (!await confirmDiscard()) return;
+            try {
+                const f = await item.handle.getFile();
+                state.content = await f.text();
+                activate(item);
+                await storeHandle('activeFile', item.handle);
+                editor.value = state.content;
+                setDirty(false);
+                showWorkspace();
+                render();
+                setStatus(`${(f.size / 1024).toFixed(1)} KB · 本機檔案`);
+            } catch (e) {
+                setStatus(`讀取失敗：${e.message}`);
+            }
+        }
+
+        /* ---------- Slug 產生器（支援中文） ---------- */
+        function slugify(text) {
+            return text
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^\w\u4e00-\u9fa5\-]/g, '')
+                .replace(/\-+/g, '-')
+                .replace(/^-|-$/g, '');
+        }
+
+        function render() {
+            const source = editor.value.replace(/\[\[([^\]\vert{}]+)(?:\Vert{}([^\]]+))?\]\]/g,
+                (_, target, label) => `[${label || target}](wiki:${encodeURIComponent(target.trim())})`);
+
+            // 1. 先解析為 HTML 字串
+            let html = marked.parse(source, { gfm: true });
+
+            // 2. 用 DOMParser 為標題補上 id（支援中文），並避免重複
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const usedIds = new Set();
+            doc.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(h => {
+                let id = slugify(h.textContent) || `heading-${usedIds.size}`;
+                let base = id, n = 1;
+                while (usedIds.has(id)) { id = `${base}-${n++}`; }
+                usedIds.add(id);
+                h.id = id;
+            });
+            html = doc.body.innerHTML;
+
+            // 3. 消毒後輸出
+            viewer.innerHTML = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+
+            viewer.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+
+            // 4. 為每個程式碼區塊加上複製按鈕
+            viewer.querySelectorAll('pre').forEach(preBlock => {
+                if (preBlock.querySelector('.copy-code-btn')) return;
+                const codeElement = preBlock.querySelector('code');
+                if (!codeElement) return;
+
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-code-btn';
+                copyButton.textContent = '複製';
+                copyButton.title = '複製程式碼';
+                copyButton.onclick = (e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(codeElement.innerText).then(() => {
+                        copyButton.textContent = '已複製!';
+                        copyButton.classList.add('copied');
+                        setTimeout(() => {
+                            copyButton.textContent = '複製';
+                            copyButton.classList.remove('copied');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('複製失敗:', err);
+                        copyButton.textContent = '複製失敗';
+                        setTimeout(() => {
+                            copyButton.textContent = '複製';
+                        }, 2000);
+                    });
+                };
+                preBlock.appendChild(copyButton);
+            });
+
+            // 5. wiki 連結
+            viewer.querySelectorAll('a[href^="wiki:"]').forEach(a => {
+                let t = decodeURIComponent(a.getAttribute('href').slice(5))
+                    .replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase();
+                const match = state.files.find(f =>
+                    f.name.replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase() === t ||
+                    f.path.replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase() === t
+                );
+                if (match) {
+                    a.href = '#';
+                    a.onclick = e => { e.preventDefault(); openNote(match) };
+                } else {
+                    a.removeAttribute('href');
+                    a.title = '找不到對應筆記';
+                }
+            });
+
+            // 6. 產生右側導覽列
+            generateTOC();
+        }
+
+        function generateTOC() {
+            tocContainer.innerHTML = '';
+            const headings = viewer.querySelectorAll('h1, h2, h3, h4, h5, h6');
+            if (headings.length === 0) {
+                tocContainer.innerHTML = '<span class="text-xs" style="color:var(--muted)">尚無標題</span>';
+                return;
+            }
+            headings.forEach((heading) => {
+                if (!heading.id) heading.id = slugify(heading.textContent) || `heading-${Math.random().toString(36).slice(2, 8)}`;
+                const link = document.createElement('a');
+                link.href = `#${heading.id}`;
+                link.className = 'toc-item';
+                link.textContent = heading.textContent;
+                const level = parseInt(heading.tagName.substring(1));
+                link.style.paddingLeft = `${(level - 1) * 10}px`;
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                };
+                tocContainer.appendChild(link);
+            });
+        }
+
+        editor.addEventListener('input', () => {
+            setDirty(editor.value !== state.content);
+            render();
+        });
+
+        async function writeHandle(handle, content) {
+            const writable = await handle.createWritable();
+            await writable.write(content);
+            await writable.close();
+        }
+
+        async function save() {
+            if (!state.active) { setStatus('請先建立或開啟筆記。'); return; }
+            try {
+                await writeHandle(state.active.handle, editor.value);
+                state.content = editor.value;
+                setDirty(false);
+                setStatus('已儲存至本機檔案');
+                render();
+            } catch (e) {
+                setStatus(`儲存失敗：${e.message}。可嘗試「另存新檔」。`);
+            }
+        }
+
+        $('saveBtn').onclick = save;
+        window.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                save();
+            }
+        });
+
+        $('saveAsBtn').onclick = async () => {
+            try {
+                if (!('showSaveFilePicker' in window)) throw Error('瀏覽器不支援另存新檔');
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: state.active?.name || '新筆記.md',
+                    types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md'] } }]
+                });
+                await writeHandle(handle, editor.value);
+                const file = await handle.getFile();
+                const item = { name: file.name, path: file.name, handle, parentHandle: state.dir };
+                state.files.push(item);
+                await rebuildTree();
+                activate(item);
+                state.content = editor.value;
+                setDirty(false);
+                setStatus('已另存至本機');
+            } catch (e) {
+                if (e.name !== 'AbortError') setStatus(`另存失敗：${e.message}`);
+            }
+        };
+
+        $('renameBtn').onclick = async () => {
+            const item = state.active;
+            if (!item) return;
+            const typed = prompt('輸入新的檔名（可不輸入 .md）：', item.name);
+            if (typed === null) return;
+            const name = validName(typed);
+            if (!name) return;
+            if (name === item.name) return;
+            if (state.files.some(f => f !== item && f.parentHandle === item.parentHandle && f.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+                setStatus('同一資料夾已有相同檔名。'); return;
+            }
+            try {
+                const file = await item.handle.getFile();
+                try {
+                    await item.parentHandle.getFileHandle(name);
+                    setStatus('同名檔案已存在，未改名。'); return;
+                } catch (checkError) { if (checkError.name !== 'NotFoundError') throw checkError; }
+                const replacement = await item.parentHandle.getFileHandle(name, { create: true });
+                await writeHandle(replacement, await file.text());
+                await item.parentHandle.removeEntry(item.name);
+                item.name = name; item.handle = replacement;
+                const prefix = item.path.includes('/') ? item.path.slice(0, item.path.lastIndexOf('/') + 1) : '';
+                item.path = prefix + name;
+                activate(item);
+                await rebuildTree();
+                setStatus('檔名已更新');
+            } catch (e) { setStatus(`改名失敗：${e.message}`); }
+        };
+
+        $('moveBtn').onclick = async () => {
+            const item = state.active;
+            if (!item) return;
+            if (!await confirmDiscard()) return;
+            try {
+                const target = await chooseTargetDirectory();
+                if (target === item.parentHandle) { setStatus('筆記已在所選資料夾中。'); return; }
+                const file = await item.handle.getFile();
+                try {
+                    await target.getFileHandle(item.name);
+                    setStatus('目標資料夾已有相同檔名，未進行移動。'); return;
+                } catch (checkError) { if (checkError.name !== 'NotFoundError') throw checkError; }
+                const nextHandle = await target.getFileHandle(item.name, { create: true });
+                await writeHandle(nextHandle, await file.text());
+                await item.parentHandle.removeEntry(item.name);
+                item.handle = nextHandle; item.parentHandle = target;
+                item.path = `${target.name}/${item.name}`;
+                state.content = await file.text(); editor.value = state.content; setDirty(false);
+                activate(item);
+                await rebuildTree();
+                setStatus(`已移動至「${target.name}」`);
+            } catch (e) { if (e.name !== 'AbortError') setStatus(`移動失敗：${e.message}`); }
+        };
+
+        $('newFile').onclick = async () => {
+            if (!await confirmDiscard()) return;
+            let name = prompt('新筆記名稱（可不輸入 .md）：', '新筆記');
+            if (name === null) return;
+            name = validName(name);
+            if (!name) return;
+            try {
+                let handle, parentHandle = state.dir;
+                if (state.dir) {
+                    const target = await chooseTargetDirectory();
+                    parentHandle = target;
+                    handle = await target.getFileHandle(name, { create: true });
+                } else if ('showSaveFilePicker' in window) {
+                    handle = await window.showSaveFilePicker({
+                        suggestedName: name,
+                        types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md'] } }]
+                    });
+                } else throw Error('請先開啟資料夾，或使用支援另存新檔的 Chrome／Edge');
+
+                await rebuildTree();
+
+                const newPath = parentHandle && state.dir
+                    ? (parentHandle === state.dir ? name : `${parentHandle.name}/${name}`)
+                    : name;
+                const createdItem = state.files.find(f => f.path === newPath)
+                    || { name: handle.name || name, path: newPath, handle, parentHandle };
+
+                state.content = '';
+                editor.value = '';
+                activate(createdItem);
+                showWorkspace();
+                setDirty(false);
+                editor.focus();
+                setStatus('新筆記已建立，編輯後按「儲存」');
+            } catch (e) {
+                if (e.name !== 'AbortError') setStatus(`建立失敗：${e.message}`);
+            }
+        };
+
+        $('openFolder').onclick = async () => {
+            if (!('showDirectoryPicker' in window)) { setStatus('請使用支援資料夾存取的 Chrome／Edge。'); return; }
+            if (!await confirmDiscard()) return;
+            try {
+                const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+                state.dir = dir;
+                await storeHandle('directory', dir);
+                state.files = [];
+                state.active = null;
+                tree.replaceChildren();
+                $('folderName').textContent = dir.name;
+                await scan(dir);
+                savePrefs();
+                setStatus(`${state.files.length} 個筆記 · 資料夾可讀寫`);
+                if (!state.files.length) tree.textContent = '此資料夾還沒有 Markdown 筆記。按「新增筆記」建立。';
+            } catch (e) {
+                if (e.name !== 'AbortError') setStatus(`開啟失敗：${e.message}`);
+            }
+        };
+
+        $('openFile').onclick = async () => {
+            if (!await confirmDiscard()) return;
+            try {
+                const [handle] = await window.showOpenFilePicker({
+                    types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md', '.markdown'], 'text/plain': ['.txt'] } }]
+                });
+                let item = state.files.find(f => f.handle === handle);
+                if (!item) {
+                    const f = await handle.getFile();
+                    item = { name: f.name, path: f.name, handle, parentHandle: state.dir };
+                    state.files.push(item);
+                    await rebuildTree();
+                }
+                await openNote(item);
+            } catch (e) {
+                if (e.name !== 'AbortError') setStatus(`開啟失敗：${e.message}`);
+            }
+        };
+
+        $('search').oninput = e => {
+            const q = e.target.value.trim().toLocaleLowerCase();
+            tree.querySelectorAll('.tree-row').forEach(r => {
+                r.hidden = !!q && !r.dataset.path.toLocaleLowerCase().includes(q);
+                if (q) {
+                    let n = r.parentElement;
+                    while (n && n !== tree) {
+                        if (n.tagName === 'DETAILS') n.open = true;
+                        n = n.parentElement;
+                    }
+                }
+            });
+        };
+
+        /* ---------- 內嵌範例 Markdown ---------- */
+        const EXAMPLE_MD = `# Markdown 語法完整範例
+
+這是一份根據 [markdown.tw](https://markdown.tw/) 整理的 Markdown 語法範例文件，涵蓋所有常用格式。
+
+---
+
+## 目錄
+
+1. [標題](#標題)
+2. [段落與換行](#段落與換行)
+3. [強調](#強調)
+4. [清單](#清單)
+5. [區塊引言](#區塊引言)
+6. [程式碼](#程式碼)
+7. [分隔線](#分隔線)
+8. [連結](#連結)
+9. [圖片](#圖片)
+10. [表格](#表格)
+11. [自動連結](#自動連結)
+12. [跳脫字元](#跳脫字元)
+
+---
+
+## 標題
+
+Markdown 支援兩種標題語法。
+
+### Setext 形式（底線）
+
+使用 \`=\` 與 \`-\` 底線：
+
+\`\`\`markdown
+This is an H1
+=============
+
+This is an H2
+-------------
+\`\`\`
+
+### Atx 形式（井字號）
+
+在行首插入 1 到 6 個 \`#\`：
+
+\`\`\`markdown
+# H1
+## H2
+### H3
+#### H4
+##### H5
+###### H6
+\`\`\`
+
+#### H4 範例
+##### H5 範例
+###### H6 範例
+
+---
+
+## 段落與換行
+
+一個段落是由一個以上相連接的行句組成。段落之間用空行分隔。
+
+這是第一個段落。Markdown 會將相連的行合併為同一個段落。
+
+這是第二個段落。如果你真的想要插入 \`<br />\` 標籤，可以在行尾加上兩個以上的空白，或是直接使用 HTML 的 \`<br />\` 標籤。
+
+這是第一行<br />
+這是第二行（使用 HTML 標籤換行）
+
+---
+
+## 強調
+
+Markdown 使用星號 \`*\` 或底線 \`_\` 來標記強調。
+
+\`\`\`markdown
+*single asterisks*
+_single underscores_
+**double asterisks**
+__double underscores__
+\`\`\`
+
+*單星號強調*
+_單底線強調_
+**雙星號強調**
+__雙底線強調__
+
+強調也可以直接插在文字中間：
+
+\`\`\`markdown
+un*frigging*believable
+\`\`\`
+
+un*frigging*believable
+
+---
+
+## 清單
+
+### 無序清單
+
+\`\`\`markdown
+*   Red
+*   Green
+*   Blue
+\`\`\`
+
+*   Red
+*   Green
+*   Blue
+
+### 有序清單
+
+\`\`\`markdown
+1.  Bird
+2.  McHale
+3.  Parish
+\`\`\`
+
+1.  Bird
+2.  McHale
+3.  Parish
+
+### 巢狀清單
+
+\`\`\`markdown
+*   水果
+    *   蘋果
+    *   香蕉
+*   蔬菜
+    1.  紅蘿蔔
+    2.  高麗菜
+\`\`\`
+
+*   水果
+    *   蘋果
+    *   香蕉
+*   蔬菜
+    1.  紅蘿蔔
+    2.  高麗菜
+
+---
+
+## 區塊引言
+
+使用 \`>\` 來建立區塊引言：
+
+\`\`\`markdown
+> This is a blockquote with two paragraphs.
+>
+> Donec sit amet nisl. Aliquam semper ipsum sit amet velit.
+\`\`\`
+
+> This is a blockquote with two paragraphs.
+>
+> Donec sit amet nisl. Aliquam semper ipsum sit amet velit.
+
+### 巢狀引言
+
+\`\`\`markdown
+> This is the first level of quoting.
+>
+> > This is nested blockquote.
+>
+> Back to the first level.
+\`\`\`
+
+> This is the first level of quoting.
+>
+> > This is nested blockquote.
+>
+> Back to the first level.
+
+---
+
+## 程式碼
+
+### 行內程式碼
+
+使用反引號包圍：
+
+\`\`\`markdown
+Use the \`printf()\` function.
+\`\`\`
+
+Use the \`printf()\` function.
+
+### 圍籬程式碼區塊（支援語法高亮）
+
+使用三個反引號並標註語言：
+
+\`\`\`javascript
+function greet(name) {
+    console.log(\`Hello, \${name}!\`);
+    return true;
+}
+\`\`\`
+
+\`\`\`python
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+\`\`\`
+
+\`\`\`css
+.markdown-body h1 {
+    font-size: 2rem;
+    border-bottom: 1px solid #e7e9f0;
+}
+\`\`\`
+
+\`\`\`html
+<div class="container">
+    <p>Hello, World!</p>
+</div>
+\`\`\`
+
+---
+
+## 分隔線
+
+使用三個或以上的星號、減號或底線：
+
+\`\`\`markdown
+***
+---
+___
+\`\`\`
+
+---
+
+## 連結
+
+### 行內形式
+
+\`\`\`markdown
+This is [an example](http://example.com/ "Title") inline link.
+\`\`\`
+
+This is [an example](http://example.com/ "Title") inline link.
+
+### 參考形式
+
+\`\`\`markdown
+This is [an example][id] reference-style link.
+
+[id]: http://example.com/  "Optional Title Here"
+\`\`\`
+
+This is [an example][id] reference-style link.
+
+[id]: http://example.com/  "Optional Title Here"
+
+---
+
+## 圖片
+
+\`\`\`markdown
+![Alt text](/path/to/img.jpg "Optional title")
+\`\`\`
+
+實際範例：
+
+![Markdown Logo](https://markdown.tw/images/208x128.png "Markdown 標誌")
+
+---
+
+## 表格
+
+\`\`\`markdown
+| 語法 | 說明 | 範例 |
+|------|------|------|
+| \`**文字**\` | 粗體 | **粗體** |
+| \`*文字*\` | 斜體 | *斜體* |
+\`\`\`
+
+| 語法 | 說明 | 範例 |
+|------|------|------|
+| \`**文字**\` | 粗體 | **粗體** |
+| \`*文字*\` | 斜體 | *斜體* |
+
+### 對齊方式
+
+\`\`\`markdown
+| 靠左 | 置中 | 靠右 |
+|:-----|:----:|-----:|
+| A    | B    | C    |
+\`\`\`
+
+| 靠左 | 置中 | 靠右 |
+|:-----|:----:|-----:|
+| A    | B    | C    |
+
+---
+
+## 自動連結
+
+\`\`\`markdown
+<http://example.com/>
+<address@example.com>
+\`\`\`
+
+<http://example.com/>
+
+<address@example.com>
+
+---
+
+## 跳脫字元
+
+使用反斜線來插入特殊符號：
+
+\`\`\`markdown
+\\*literal asterisks\\*
+\`\`\`
+
+\\*literal asterisks\\*
+
+---
+
+## 特殊字元自動轉換
+
+Markdown 會自動將 \`<\` 和 \`&\` 轉換為 HTML 實體：
+
+\`\`\`markdown
+4 < 5
+AT&T
+\`\`\`
+
+4 < 5
+
+AT&T
+
+---
+
+## 參考資料
+
+- [Markdown 語法說明（正體中文）](https://markdown.tw/)
+
+---
+
+*文件結束*
+`;
+
+        $('downloadExampleBtn').onclick = () => {
+            // 1. 下載 .md 檔
+            const blob = new Blob([EXAMPLE_MD], { type: 'text/plain;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'Markdown語法範例.md';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+
+            // 2. 同時載入編輯器，讓使用者立刻看到渲染結果
+            state.content = EXAMPLE_MD;
+            editor.value = EXAMPLE_MD;
+            setDirty(false);
+            showWorkspace();
+            render();
+            $('docTitle').textContent = 'Markdown語法範例.md（未儲存）';
+            setStatus('已下載並載入範例，記得按「儲存」留存變更');
+        };
+
+        /* ---------- 拖曳檔案／資料夾開啟 ---------- */
+        function initDragAndDrop() {
+            const main = $('mainContent');
+            const hasFsHandle = 'getAsFileSystemHandle' in DataTransferItem.prototype;
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(type => {
+                window.addEventListener(type, e => e.preventDefault());
+            });
+
+            let dragDepth = 0;
+            main.addEventListener('dragenter', e => {
+                dragDepth++;
+                if (e.dataTransfer?.types.includes('Files')) main.classList.add('dragover');
+            });
+            main.addEventListener('dragleave', () => {
+                dragDepth = Math.max(0, dragDepth - 1);
+                if (dragDepth === 0) main.classList.remove('dragover');
+            });
+            main.addEventListener('dragover', e => {
+                e.dataTransfer.dropEffect = 'copy';
+            });
+
+            main.addEventListener('drop', async e => {
+                dragDepth = 0;
+                main.classList.remove('dragover');
+                const items = e.dataTransfer?.items;
+                if (!items || items.length === 0) return;
+
+                if (hasFsHandle) {
+                    const handles = [];
+                    for (const item of items) {
+                        if (item.kind !== 'file') continue;
+                        try {
+                            const handle = await item.getAsFileSystemHandle();
+                            if (handle) handles.push(handle);
+                        } catch { }
+                    }
+                    if (handles.length > 0) {
+                        await handleDroppedHandles(handles);
+                        return;
+                    }
+                }
+
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0) {
+                    await handleDroppedFiles(files);
+                }
+            });
+        }
+
+        async function handleDroppedHandles(handles) {
+            if (!await confirmDiscard()) return;
+            let openedFile = false;
+            let loadedFolder = false;
+
+            for (const handle of handles) {
+                if (handle.kind === 'directory') {
+                    state.dir = handle;
+                    await storeHandle('directory', handle);
+                    state.files = [];
+                    state.active = null;
+                    tree.replaceChildren();
+                    $('folderName').textContent = handle.name;
+                    await scan(handle);
+                    savePrefs();
+                    setStatus(`${state.files.length} 個筆記 · 已載入資料夾「${handle.name}」`);
+                    if (!state.files.length) tree.textContent = '此資料夾還沒有 Markdown 筆記。';
+                    loadedFolder = true;
+                } else if (handle.kind === 'file') {
+                    const file = await handle.getFile();
+                    if (!/\.(md|markdown|txt)$/i.test(file.name)) continue;
+                    let item = state.files.find(f => f.handle === handle);
+                    if (!item) {
+                        item = { name: file.name, path: file.name, handle, parentHandle: state.dir };
+                        state.files.push(item);
+                        addRow(item);
+                    }
+                    await openNote(item);
+                    openedFile = true;
+                }
+            }
+
+            if (loadedFolder && !openedFile) {
+                // 只拖資料夾：不強制開任何檔
+            }
+        }
+
+        async function handleDroppedFiles(files) {
+            if (!await confirmDiscard()) return;
+            let opened = false;
+            for (const file of files) {
+                if (!/\.(md|markdown|txt)$/i.test(file.name)) continue;
+                state.content = await file.text();
+                editor.value = state.content;
+                setDirty(true);
+                showWorkspace();
+                render();
+                $('docTitle').textContent = `${file.name}（拖入，未連結原檔）`;
+                $('folderName').textContent = '拖入檔案（唯讀）';
+                setStatus('拖入檔案：可編輯，但需「另存新檔」才能寫回本機');
+                opened = true;
+            }
+            if (!opened) setStatus('拖入的檔案不是 Markdown（.md / .markdown / .txt）。');
+        }
+
+        /* ---------- 換 icon 精靈 ---------- */
+        let pendingAccent = null;
+
+        function openIconWizard(accent) {
+            pendingAccent = accent;
+            // 為了預覽，先產生一組新 icon（不更新 manifest）
+            const preview192 = makePngIconDataUrl(accent, 192);
+            const preview512 = makePngIconDataUrl(accent, 512);
+            $('iconPreview192').src = preview192;
+            $('iconPreview512').src = preview512;
+            $('iconWizard').classList.add('show');
+            $('iconWizard').setAttribute('aria-hidden', 'false');
+        }
+
+        function closeIconWizard() {
+            $('iconWizard').classList.remove('show');
+            $('iconWizard').setAttribute('aria-hidden', 'true');
+            pendingAccent = null;
+        }
+
+        function showToast(text, actionLabel, actionFn, duration = 8000) {
+            const toast = $('iconToast');
+            $('iconToastText').textContent = text;
+
+            const btn = $('iconToastAction');
+            if (actionLabel && actionFn) {
+                btn.textContent = actionLabel;
+                btn.classList.remove('hidden');
+                btn.onclick = () => {
+                    actionFn();
+                    toast.classList.remove('show');
+                };
+            } else {
+                btn.classList.add('hidden');
+                btn.onclick = null;
+            }
+
+            toast.classList.add('show');
+            clearTimeout(showToast._t);
+            showToast._t = setTimeout(() => toast.classList.remove('show'), duration);
+        }
+
+        $('iconWizardCancel').onclick = closeIconWizard;
+
+        $('iconWizardConfirm').onclick = async () => {
+            if (!pendingAccent) return closeIconWizard();
+            const accent = pendingAccent;
+            applyManifest(accent);
+            closeIconWizard();
+
+            const isStandalone =
+                window.matchMedia('(display-mode: standalone)').matches ||
+                window.navigator.standalone === true;
+
+            if (deferredPrompt) {
+                showToast('App 圖示已更新，下次安裝時會套用新顏色。');
+            } else if (isStandalone) {
+                showToast(
+                    'App 圖示已更新。已安裝的 App 需卸載後重新安裝才會換圖示。',
+                    '了解',
+                    () => { }
+                );
+            } else {
+                showToast(
+                    'App 圖示已更新。若你已安裝過 App，請卸載後重新安裝才會生效。'
+                );
+            }
+        };
+
+        $('iconWizard').addEventListener('click', e => {
+            if (e.target === $('iconWizard')) closeIconWizard();
+        });
+
+        initDragAndDrop();
+
+        initResizers();
+        updatePanels();
+        restoreLastOpen();
+
+        requestAnimationFrame(() => applyPaneWidths(currentWidths));
+        window.addEventListener('resize', () => applyPaneWidths(currentWidths));
+    </script>
+</body>
+
+</html>
