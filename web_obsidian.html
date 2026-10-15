@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="theme-color" content="#f7f8fc">
     <title>MavMD｜Markdown 工作台</title>
+
+    <!-- PWA Web App Manifest (動態內嵌 Data URL 以達成單一檔案完整運作) -->
+    <link id="pwaManifest" rel="manifest" href="">
+
+    <!-- Tailwind CSS & Markdown/Syntax Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -163,7 +168,9 @@
         .markdown-body h1,
         .markdown-body h2,
         .markdown-body h3,
-        .markdown-body h4 {
+        .markdown-body h4,
+        .markdown-body h5,
+        .markdown-body h6 {
             color: var(--ink);
             font-weight: 700;
             line-height: 1.35;
@@ -185,6 +192,19 @@
 
         .markdown-body h3 {
             font-size: 1.25rem
+        }
+
+        .markdown-body h4 {
+            font-size: 1.1rem
+        }
+
+        .markdown-body h5 {
+            font-size: 1rem
+        }
+
+        .markdown-body h6 {
+            font-size: 0.9rem;
+            color: var(--muted)
         }
 
         .markdown-body p,
@@ -209,11 +229,22 @@
             list-style: decimal
         }
 
+        .markdown-body li>ul,
+        .markdown-body li>ol {
+            margin-top: .5em;
+            margin-bottom: .5em;
+        }
+
         .markdown-body blockquote {
             border-left: 3px solid var(--accent);
             background: var(--canvas);
             padding: .7em 1em;
             border-radius: 0 8px 8px 0
+        }
+
+        .markdown-body blockquote blockquote {
+            margin-top: .8em;
+            border-left-color: var(--muted);
         }
 
         .markdown-body code {
@@ -228,7 +259,8 @@
             border: 1px solid var(--line);
             border-radius: 10px;
             padding: 1em;
-            overflow: auto
+            overflow: auto;
+            position: relative;
         }
 
         .markdown-body pre code {
@@ -269,6 +301,37 @@
             border: 0;
             border-top: 1px solid var(--line);
             margin: 2em 0
+        }
+
+        /* 複製按鈕樣式 */
+        .copy-code-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            color: var(--muted);
+        }
+
+        .markdown-body pre:hover .copy-code-btn {
+            opacity: 1;
+        }
+
+        .copy-code-btn:hover {
+            background: var(--surface);
+            color: var(--accent);
+        }
+
+        .copy-code-btn.copied {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
         }
 
         input[type=color] {
@@ -340,7 +403,6 @@
             }
         }
 
-        /* 導覽列樣式 */
         .toc-item {
             display: block;
             overflow: hidden;
@@ -357,7 +419,6 @@
             color: var(--accent);
         }
 
-        /* 拖曳霸樣式 */
         .resizer {
             width: 6px;
             cursor: col-resize;
@@ -375,7 +436,6 @@
             opacity: 0.5;
         }
 
-        /* 三欄容器：用 flex，但寬度由 JS 以 px 控制 */
         #resizerContainer {
             display: flex;
             flex-direction: row;
@@ -403,16 +463,31 @@
             flex-direction: column;
         }
 
-        /* 預覽區：讓它自己成為滾動容器 */
         #previewPane {
             overflow-y: auto;
             overflow-x: hidden;
         }
 
-        /* TOC：同上 */
         #tocPane {
             overflow-y: auto;
             overflow-x: hidden;
+        }
+
+        /* 拖曳上傳提示 */
+        #mainContent.dragover::after {
+            content: "放開以開啟檔案或資料夾";
+            position: absolute;
+            inset: 1rem;
+            display: grid;
+            place-items: center;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent);
+            background: rgba(101, 88, 211, 0.08);
+            border: 2px dashed var(--accent);
+            border-radius: 16px;
+            pointer-events: none;
+            z-index: 40;
         }
 
         @media(max-width:640px) {
@@ -448,11 +523,16 @@
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
+            <!-- PWA 安裝按鈕 -->
+            <button id="installPwaBtn"
+                class="ghost rounded-lg px-3 py-2 text-sm font-medium hidden text-indigo-600 border-indigo-200">安裝
+                App</button>
             <button id="openFolder" class="primary rounded-lg px-3 py-2 text-sm font-medium">開啟資料夾</button>
+            <button id="downloadExampleBtn" class="ghost rounded-lg px-3 py-2 text-sm">下載範例</button>
             <button id="openFile" class="ghost rounded-lg px-3 py-2 text-sm">開啟檔案</button>
             <button id="newFile" class="ghost rounded-lg px-3 py-2 text-sm">新增筆記</button>
 
-            <!-- 外觀設定移至 Topbar -->
+            <!-- 外觀設定 -->
             <details class="relative">
                 <summary class="ghost cursor-pointer list-none rounded-lg px-3 py-2 text-sm flex items-center gap-1">
                     外觀</summary>
@@ -489,12 +569,12 @@
                 <div class="px-3 py-8 text-center text-sm leading-6" style="color:var(--muted)">開啟資料夾或建立新筆記，開始使用。</div>
             </nav>
             <div class="statusbar border-t px-3 py-2 text-xs flex flex-col gap-2" style="color:var(--muted)"><span
-                    id="status">內容只在本機讀寫</span><button id="resumeLastBtn"
+                    id="status">內容只在本機讀寫 · PWA 離線就緒</span><button id="resumeLastBtn"
                     class="ghost hidden rounded-lg px-2 py-1 text-xs" type="button">重新授權並恢復上次項目</button></div>
         </aside>
 
-        <!-- 主內容區 (滿版可拉動三欄) -->
-        <main id="mainContent" class="flex-1 min-w-0 min-h-0 flex flex-col p-4 sm:p-6">
+        <!-- 主內容區 -->
+        <main id="mainContent" class="relative flex-1 min-w-0 min-h-0 flex flex-col p-4 sm:p-6">
             <div id="workspace" class="hidden flex-1 min-h-0 flex flex-col">
                 <!-- 檔案工具列 -->
                 <div
@@ -568,16 +648,129 @@
                 <div class="brand-mark mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl text-2xl font-bold">M
                 </div>
                 <h2 class="mb-2 text-2xl font-bold">你的筆記，你作主</h2>
-                <p class="text-sm leading-7" style="color:var(--muted)">開啟本機資料夾，左側編輯、右側即時預覽 Markdown 筆記；支援自動標題導覽與自訂介面顏色。
+                <p class="text-sm leading-7" style="color:var(--muted)">開啟本機資料夾，左側編輯、右側即時預覽 Markdown 筆記；支援自動標題導覽、自訂配色與
+                    PWA 離線安裝。
                 </p>
-                <p class="mt-4 text-xs" style="color:var(--muted)">支援 Chrome／Edge；本機檔案存取通常需要 HTTPS 或 localhost。</p>
+                <p class="mt-4 text-xs" style="color:var(--muted)">支援 Chrome／Edge；支援離線 PWA
+                    快取與獨立桌面應用程式模式。也可以直接把檔案或整個資料夾拖進來。</p>
             </section>
         </main>
     </div>
 
     <script>
-        const $ = id => document.getElementById(id),
-            tree = $('fileTree'),
+        /* ---------- DOM 查詢捷徑（必須在所有程式碼最上方宣告以避免 ReferenceError） ---------- */
+        const $ = id => document.getElementById(id);
+
+        /* ---------- 動態設定 Web App Manifest (Data URL) ---------- */
+        const manifestData = {
+            "name": "MavMD Markdown 工作台",
+            "short_name": "MavMD",
+            "start_url": "./",
+            "display": "standalone",
+            "background_color": "#f7f8fc",
+            "theme_color": "#6558d3",
+            "icons": [
+                {
+                    "src": "https://placehold.co/192x192/6558d3/ffffff?text=M",
+                    "sizes": "192x192",
+                    "type": "image/png"
+                },
+                {
+                    "src": "https://placehold.co/512x512/6558d3/ffffff?text=M",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }
+            ]
+        };
+        $('pwaManifest').href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestData));
+
+        /* ---------- PWA Service Worker 註冊 (使用 Base64 Data URL 避開 blob 協定限制) ---------- */
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swCode = `
+                    const CACHE_NAME = 'mavmd-pwa-v2';
+                    const ASSETS = [
+                        './',
+                        'https://cdn.tailwindcss.com',
+                        'https://cdn.jsdelivr.net/npm/marked/marked.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css',
+                        'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js'
+                    ];
+
+                    self.addEventListener('install', event => {
+                        event.waitUntil(
+                            caches.open(CACHE_NAME).then(cache => {
+                                return cache.addAll(ASSETS.map(url => new Request(url, {mode: 'no-cors'}))).catch(() => {});
+                            })
+                        );
+                        self.skipWaiting();
+                    });
+
+                    self.addEventListener('activate', event => {
+                        event.waitUntil(
+                            caches.keys().then(keys => Promise.all(
+                                keys.map(key => {
+                                    if (key !== CACHE_NAME) return caches.delete(key);
+                                })
+                            ))
+                        );
+                        self.clients.claim();
+                    });
+
+                    self.addEventListener('fetch', event => {
+                        event.respondWith(
+                            caches.match(event.request).then(cachedResponse => {
+                                if (cachedResponse) {
+                                    return cachedResponse;
+                                }
+                                return fetch(event.request).then(response => {
+                                    return response;
+                                }).catch(() => {
+                                    if (event.request.mode === 'navigate') {
+                                        return caches.match('./');
+                                    }
+                                });
+                            })
+                        );
+                    });
+                `;
+                const swDataUrl = 'data:application/javascript;base64,' + btoa(unescape(encodeURIComponent(swCode)));
+
+                navigator.serviceWorker.register(swDataUrl)
+                    .then(reg => console.log('MavMD PWA ServiceWorker 註冊成功:', reg.scope))
+                    .catch(err => console.log('MavMD PWA ServiceWorker 註冊失敗:', err));
+            });
+        }
+
+        /* 攔截瀏覽器 PWA 安裝提示 */
+        let deferredPrompt = null;
+        const installBtn = $('installPwaBtn');
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            if (installBtn) installBtn.classList.remove('hidden');
+        });
+
+        if (installBtn) {
+            installBtn.onclick = async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installBtn.classList.add('hidden');
+                }
+                deferredPrompt = null;
+            };
+        }
+
+        window.addEventListener('appinstalled', () => {
+            if (installBtn) installBtn.classList.add('hidden');
+            console.log('MavMD PWA 已成功安裝至桌面');
+        });
+
+        /* ---------- 主程式變數與邏輯 ---------- */
+        const tree = $('fileTree'),
             viewer = $('viewer'),
             editor = $('editor'),
             tocContainer = $('tocContainer'),
@@ -602,7 +795,6 @@
             text: $('textColor')
         };
 
-        /* ---------- 偏好設定 ---------- */
         function loadPrefs() {
             try { return JSON.parse(localStorage.getItem('MavMD設定') || '{}') } catch { return {} }
         }
@@ -652,7 +844,6 @@
         }
         $('resetColors').onclick = () => { applyColors(defaults); savePrefs() };
 
-        /* ---------- 檔案控制代碼儲存 ---------- */
         const handleDB = new Promise((resolve, reject) => {
             const request = indexedDB.open('MavMD檔案記憶', 1);
             request.onupgradeneeded = () => request.result.createObjectStore('handles');
@@ -737,7 +928,6 @@
 
         function showWorkspace() { $('welcome').classList.add('hidden'); $('workspace').classList.remove('hidden') }
 
-        /* ---------- 三欄寬度控制 ---------- */
         const paneEls = {
             editor: () => $('editorPane'),
             preview: () => $('previewPane'),
@@ -836,7 +1026,6 @@
         }
         $('tocToggleTop').onclick = toggleTOC;
 
-        /* ---------- 拖曳霸（px 計算） ---------- */
         function initResizers() {
             const container = $('resizerContainer');
             const r1 = $('resizer1');
@@ -927,7 +1116,6 @@
             });
         }
 
-        /* ---------- 選單 ---------- */
         const gear = $('toolsGear'), toolsMenu = $('toolsMenu');
         gear.onclick = () => {
             const open = gear.getAttribute('aria-expanded') !== 'true';
@@ -943,7 +1131,6 @@
             }
         });
 
-        /* ---------- 檔案樹 ---------- */
         async function rebuildTree() {
             tree.replaceChildren();
             if (state.dir) {
@@ -1044,12 +1231,73 @@
             }
         }
 
+        /* ---------- Slug 產生器（支援中文） ---------- */
+        function slugify(text) {
+            return text
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^\w\u4e00-\u9fa5\-]/g, '')
+                .replace(/\-+/g, '-')
+                .replace(/^-|-$/g, '');
+        }
+
         function render() {
             const source = editor.value.replace(/\[\[([^\]\vert{}]+)(?:\Vert{}([^\]]+))?\]\]/g,
                 (_, target, label) => `[${label || target}](wiki:${encodeURIComponent(target.trim())})`);
-            viewer.innerHTML = DOMPurify.sanitize(marked.parse(source, { gfm: true }), { USE_PROFILES: { html: true } });
+
+            // 1. 先解析為 HTML 字串
+            let html = marked.parse(source, { gfm: true });
+
+            // 2. 用 DOMParser 為標題補上 id（支援中文），並避免重複
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const usedIds = new Set();
+            doc.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(h => {
+                let id = slugify(h.textContent) || `heading-${usedIds.size}`;
+                // 避免重複 id
+                let base = id, n = 1;
+                while (usedIds.has(id)) { id = `${base}-${n++}`; }
+                usedIds.add(id);
+                h.id = id;
+            });
+            html = doc.body.innerHTML;
+
+            // 3. 消毒後輸出
+            viewer.innerHTML = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+
             viewer.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
 
+            // 4. 為每個程式碼區塊加上複製按鈕
+            viewer.querySelectorAll('pre').forEach(preBlock => {
+                if (preBlock.querySelector('.copy-code-btn')) return;
+                const codeElement = preBlock.querySelector('code');
+                if (!codeElement) return;
+
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-code-btn';
+                copyButton.textContent = '複製';
+                copyButton.title = '複製程式碼';
+                copyButton.onclick = (e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(codeElement.innerText).then(() => {
+                        copyButton.textContent = '已複製!';
+                        copyButton.classList.add('copied');
+                        setTimeout(() => {
+                            copyButton.textContent = '複製';
+                            copyButton.classList.remove('copied');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('複製失敗:', err);
+                        copyButton.textContent = '複製失敗';
+                        setTimeout(() => {
+                            copyButton.textContent = '複製';
+                        }, 2000);
+                    });
+                };
+                preBlock.appendChild(copyButton);
+            });
+
+            // 5. wiki 連結
             viewer.querySelectorAll('a[href^="wiki:"]').forEach(a => {
                 let t = decodeURIComponent(a.getAttribute('href').slice(5))
                     .replace(/\.(md|markdown|txt)$/i, '').toLocaleLowerCase();
@@ -1066,6 +1314,7 @@
                 }
             });
 
+            // 6. 產生右側導覽列
             generateTOC();
         }
 
@@ -1076,8 +1325,9 @@
                 tocContainer.innerHTML = '<span class="text-xs" style="color:var(--muted)">尚無標題</span>';
                 return;
             }
-            headings.forEach((heading, index) => {
-                if (!heading.id) heading.id = `heading-${index}`;
+            headings.forEach((heading) => {
+                // render() 已經給過 id，這裡只做保險
+                if (!heading.id) heading.id = slugify(heading.textContent) || `heading-${Math.random().toString(36).slice(2, 8)}`;
                 const link = document.createElement('a');
                 link.href = `#${heading.id}`;
                 link.className = 'toc-item';
@@ -1290,7 +1540,487 @@
             });
         };
 
-        /* ---------- 初始化 ---------- */
+        /* ---------- 內嵌範例 Markdown（與 download.html 同步） ---------- */
+        const EXAMPLE_MD = `# Markdown 語法完整範例
+
+這是一份根據 [markdown.tw](https://markdown.tw/) 整理的 Markdown 語法範例文件，涵蓋所有常用格式。
+
+---
+
+## 目錄
+
+1. [標題](#標題)
+2. [段落與換行](#段落與換行)
+3. [強調](#強調)
+4. [清單](#清單)
+5. [區塊引言](#區塊引言)
+6. [程式碼](#程式碼)
+7. [分隔線](#分隔線)
+8. [連結](#連結)
+9. [圖片](#圖片)
+10. [表格](#表格)
+11. [自動連結](#自動連結)
+12. [跳脫字元](#跳脫字元)
+
+---
+
+## 標題
+
+Markdown 支援兩種標題語法。
+
+### Setext 形式（底線）
+
+使用 \`=\` 與 \`-\` 底線：
+
+\`\`\`markdown
+This is an H1
+=============
+
+This is an H2
+-------------
+\`\`\`
+
+### Atx 形式（井字號）
+
+在行首插入 1 到 6 個 \`#\`：
+
+\`\`\`markdown
+# H1
+## H2
+### H3
+#### H4
+##### H5
+###### H6
+\`\`\`
+
+#### H4 範例
+##### H5 範例
+###### H6 範例
+
+---
+
+## 段落與換行
+
+一個段落是由一個以上相連接的行句組成。段落之間用空行分隔。
+
+這是第一個段落。Markdown 會將相連的行合併為同一個段落。
+
+這是第二個段落。如果你真的想要插入 \`<br />\` 標籤，可以在行尾加上兩個以上的空白，或是直接使用 HTML 的 \`<br />\` 標籤。
+
+這是第一行<br />
+這是第二行（使用 HTML 標籤換行）
+
+---
+
+## 強調
+
+Markdown 使用星號 \`*\` 或底線 \`_\` 來標記強調。
+
+\`\`\`markdown
+*single asterisks*
+_single underscores_
+**double asterisks**
+__double underscores__
+\`\`\`
+
+*單星號強調*
+_單底線強調_
+**雙星號強調**
+__雙底線強調__
+
+強調也可以直接插在文字中間：
+
+\`\`\`markdown
+un*frigging*believable
+\`\`\`
+
+un*frigging*believable
+
+---
+
+## 清單
+
+### 無序清單
+
+\`\`\`markdown
+*   Red
+*   Green
+*   Blue
+\`\`\`
+
+*   Red
+*   Green
+*   Blue
+
+### 有序清單
+
+\`\`\`markdown
+1.  Bird
+2.  McHale
+3.  Parish
+\`\`\`
+
+1.  Bird
+2.  McHale
+3.  Parish
+
+### 巢狀清單
+
+\`\`\`markdown
+*   水果
+    *   蘋果
+    *   香蕉
+*   蔬菜
+    1.  紅蘿蔔
+    2.  高麗菜
+\`\`\`
+
+*   水果
+    *   蘋果
+    *   香蕉
+*   蔬菜
+    1.  紅蘿蔔
+    2.  高麗菜
+
+---
+
+## 區塊引言
+
+使用 \`>\` 來建立區塊引言：
+
+\`\`\`markdown
+> This is a blockquote with two paragraphs.
+>
+> Donec sit amet nisl. Aliquam semper ipsum sit amet velit.
+\`\`\`
+
+> This is a blockquote with two paragraphs.
+>
+> Donec sit amet nisl. Aliquam semper ipsum sit amet velit.
+
+### 巢狀引言
+
+\`\`\`markdown
+> This is the first level of quoting.
+>
+> > This is nested blockquote.
+>
+> Back to the first level.
+\`\`\`
+
+> This is the first level of quoting.
+>
+> > This is nested blockquote.
+>
+> Back to the first level.
+
+---
+
+## 程式碼
+
+### 行內程式碼
+
+使用反引號包圍：
+
+\`\`\`markdown
+Use the \`printf()\` function.
+\`\`\`
+
+Use the \`printf()\` function.
+
+### 圍籬程式碼區塊（支援語法高亮）
+
+使用三個反引號並標註語言：
+
+\`\`\`javascript
+function greet(name) {
+    console.log(\`Hello, \${name}!\`);
+    return true;
+}
+\`\`\`
+
+\`\`\`python
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+\`\`\`
+
+\`\`\`css
+.markdown-body h1 {
+    font-size: 2rem;
+    border-bottom: 1px solid #e7e9f0;
+}
+\`\`\`
+
+\`\`\`html
+<div class="container">
+    <p>Hello, World!</p>
+</div>
+\`\`\`
+
+---
+
+## 分隔線
+
+使用三個或以上的星號、減號或底線：
+
+\`\`\`markdown
+***
+---
+___
+\`\`\`
+
+---
+
+## 連結
+
+### 行內形式
+
+\`\`\`markdown
+This is [an example](http://example.com/ "Title") inline link.
+\`\`\`
+
+This is [an example](http://example.com/ "Title") inline link.
+
+### 參考形式
+
+\`\`\`markdown
+This is [an example][id] reference-style link.
+
+[id]: http://example.com/  "Optional Title Here"
+\`\`\`
+
+This is [an example][id] reference-style link.
+
+[id]: http://example.com/  "Optional Title Here"
+
+---
+
+## 圖片
+
+\`\`\`markdown
+![Alt text](/path/to/img.jpg "Optional title")
+\`\`\`
+
+實際範例：
+
+![Markdown Logo](https://markdown.tw/images/208x128.png "Markdown 標誌")
+
+---
+
+## 表格
+
+\`\`\`markdown
+| 語法 | 說明 | 範例 |
+|------|------|------|
+| \`**文字**\` | 粗體 | **粗體** |
+| \`*文字*\` | 斜體 | *斜體* |
+\`\`\`
+
+| 語法 | 說明 | 範例 |
+|------|------|------|
+| \`**文字**\` | 粗體 | **粗體** |
+| \`*文字*\` | 斜體 | *斜體* |
+
+### 對齊方式
+
+\`\`\`markdown
+| 靠左 | 置中 | 靠右 |
+|:-----|:----:|-----:|
+| A    | B    | C    |
+\`\`\`
+
+| 靠左 | 置中 | 靠右 |
+|:-----|:----:|-----:|
+| A    | B    | C    |
+
+---
+
+## 自動連結
+
+\`\`\`markdown
+<http://example.com/>
+<address@example.com>
+\`\`\`
+
+<http://example.com/>
+
+<address@example.com>
+
+---
+
+## 跳脫字元
+
+使用反斜線來插入特殊符號：
+
+\`\`\`markdown
+\\*literal asterisks\\*
+\`\`\`
+
+\\*literal asterisks\\*
+
+---
+
+## 特殊字元自動轉換
+
+Markdown 會自動將 \`<\` 和 \`&\` 轉換為 HTML 實體：
+
+\`\`\`markdown
+4 < 5
+AT&T
+\`\`\`
+
+4 < 5
+
+AT&T
+
+---
+
+## 參考資料
+
+- [Markdown 語法說明（正體中文）](https://markdown.tw/)
+
+---
+
+*文件結束*
+`;
+
+        $('downloadExampleBtn').onclick = () => {
+            // 1. 下載 .md 檔
+            const blob = new Blob([EXAMPLE_MD], { type: 'text/plain;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'Markdown語法範例.md';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+
+            // 2. 同時載入編輯器，讓使用者立刻看到渲染結果
+            state.content = EXAMPLE_MD;
+            editor.value = EXAMPLE_MD;
+            setDirty(false);
+            showWorkspace();
+            render();
+            $('docTitle').textContent = 'Markdown語法範例.md（未儲存）';
+            setStatus('已下載並載入範例，記得按「儲存」留存變更');
+        };
+
+        /* ---------- 拖曳檔案／資料夾開啟 ---------- */
+        function initDragAndDrop() {
+            const main = $('mainContent');
+            const hasFsHandle = 'getAsFileSystemHandle' in DataTransferItem.prototype;
+
+            // 避免瀏覽器預設開檔行為
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(type => {
+                window.addEventListener(type, e => e.preventDefault());
+            });
+
+            let dragDepth = 0;
+            main.addEventListener('dragenter', e => {
+                dragDepth++;
+                if (e.dataTransfer?.types.includes('Files')) main.classList.add('dragover');
+            });
+            main.addEventListener('dragleave', () => {
+                dragDepth = Math.max(0, dragDepth - 1);
+                if (dragDepth === 0) main.classList.remove('dragover');
+            });
+            main.addEventListener('dragover', e => {
+                e.dataTransfer.dropEffect = 'copy';
+            });
+
+            main.addEventListener('drop', async e => {
+                dragDepth = 0;
+                main.classList.remove('dragover');
+                const items = e.dataTransfer?.items;
+                if (!items || items.length === 0) return;
+
+                // 優先走 File System Access API（可處理資料夾）
+                if (hasFsHandle) {
+                    const handles = [];
+                    for (const item of items) {
+                        if (item.kind !== 'file') continue;
+                        try {
+                            const handle = await item.getAsFileSystemHandle();
+                            if (handle) handles.push(handle);
+                        } catch { /* 忽略個別失敗 */ }
+                    }
+                    if (handles.length > 0) {
+                        await handleDroppedHandles(handles);
+                        return;
+                    }
+                }
+
+                // Fallback：只處理檔案（無法處理資料夾）
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0) {
+                    await handleDroppedFiles(files);
+                }
+            });
+        }
+
+        async function handleDroppedHandles(handles) {
+            if (!await confirmDiscard()) return;
+            let openedFile = false;
+            let loadedFolder = false;
+
+            for (const handle of handles) {
+                if (handle.kind === 'directory') {
+                    // 把拖進來的資料夾當成「開啟的資料夾」，取代目前的
+                    state.dir = handle;
+                    await storeHandle('directory', handle);
+                    state.files = [];
+                    state.active = null;
+                    tree.replaceChildren();
+                    $('folderName').textContent = handle.name;
+                    await scan(handle);
+                    savePrefs();
+                    setStatus(`${state.files.length} 個筆記 · 已載入資料夾「${handle.name}」`);
+                    if (!state.files.length) tree.textContent = '此資料夾還沒有 Markdown 筆記。';
+                    loadedFolder = true;
+                } else if (handle.kind === 'file') {
+                    const file = await handle.getFile();
+                    if (!/\.(md|markdown|txt)$/i.test(file.name)) continue;
+                    let item = state.files.find(f => f.handle === handle);
+                    if (!item) {
+                        item = { name: file.name, path: file.name, handle, parentHandle: state.dir };
+                        state.files.push(item);
+                        addRow(item);
+                    }
+                    await openNote(item);
+                    openedFile = true;
+                }
+            }
+
+            // 若同時拖了資料夾和檔案，資料夾掃描後會清空 state.files，
+            // 所以資料夾處理完再開檔比較穩；這裡簡化處理，最後補一次
+            if (loadedFolder && !openedFile) {
+                // 只拖資料夾：不強制開任何檔，讓使用者自己點
+            }
+        }
+
+        async function handleDroppedFiles(files) {
+            if (!await confirmDiscard()) return;
+            let opened = false;
+            for (const file of files) {
+                if (!/\.(md|markdown|txt)$/i.test(file.name)) continue;
+                // fallback 模式下沒有 handle 可寫回原檔，只能載入內容編輯
+                state.content = await file.text();
+                editor.value = state.content;
+                setDirty(true);
+                showWorkspace();
+                render();
+                $('docTitle').textContent = `${file.name}（拖入，未連結原檔）`;
+                $('folderName').textContent = '拖入檔案（唯讀）';
+                setStatus('拖入檔案：可編輯，但需「另存新檔」才能寫回本機');
+                opened = true;
+            }
+            if (!opened) setStatus('拖入的檔案不是 Markdown（.md / .markdown / .txt）。');
+        }
+
+        initDragAndDrop();
+
         initResizers();
         updatePanels();
         restoreLastOpen();
