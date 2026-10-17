@@ -417,12 +417,14 @@ a {
     opacity: 0.5;
 }
 
+/* --- 修正：強制容器與子元素撐滿寬度 --- */
 #resizerContainer {
     display: flex;
     flex-direction: row;
     align-items: stretch;
     gap: 0;
     min-height: 0;
+    width: 100% !important;
 }
 
 #editorPane,
@@ -431,17 +433,11 @@ a {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-}
-
-#editorPane,
-#previewPane {
     display: flex;
     flex-direction: column;
-}
-
-#tocPane {
-    display: flex;
-    flex-direction: column;
+    /* 確保它們在內容為空時也能撐開 */
+    flex-grow: 0;
+    flex-shrink: 0;
 }
 
 #previewPane,

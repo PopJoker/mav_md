@@ -83,7 +83,7 @@
 
         <!-- 主內容區 -->
         <main id="mainContent" class="relative flex-1 min-w-0 min-h-0 flex flex-col p-4 sm:p-6">
-            <div id="workspace" class="hidden flex-1 min-h-0 flex flex-col">
+            <div id="workspace" class="hidden flex-1 min-h-0 flex flex-col w-full">
                 <div
                     class="toolbar shrink-0 mb-4 flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 rounded-xl">
                     <div class="min-w-0">
@@ -116,7 +116,8 @@
                     </div>
                 </div>
 
-                <div id="resizerContainer" class="flex-1 min-h-0 pb-4">
+                <!-- 加上 w-full 確保寬度絕對被撐滿 -->
+                <div id="resizerContainer" class="flex-1 min-h-0 pb-4 w-full">
                     <div id="editorPane">
                         <textarea id="editor" class="rounded-xl border bg-white p-4 scrollbar"
                             style="border-color:var(--line);color:var(--ink)" spellcheck="false"

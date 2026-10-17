@@ -6,7 +6,13 @@ import { savePrefs } from './prefs.js';
 let currentWidths = { ...DEFAULT_WIDTHS };
 
 export function setCurrentWidths(widths) {
-    currentWidths = { ...DEFAULT_WIDTHS, ...widths };
+    // 確保傳入的寬度是有效的數字，否則使用預設值
+    const safeWidths = {};
+    for (const key of ['editor', 'preview', 'toc']) {
+        const val = widths?.[key];
+        safeWidths[key] = (typeof val === 'number' && !isNaN(val) && val > 0) ? val : DEFAULT_WIDTHS[key];
+    }
+    currentWidths = { ...DEFAULT_WIDTHS, ...safeWidths };
 }
 
 export function getCurrentWidths() {
@@ -171,11 +177,10 @@ export function initResizers() {
     function onUp() {
         if (drag) {
             const total = els.editorPane.offsetWidth + els.previewPane.offsetWidth + els.tocPane.offsetWidth || 1;
-            currentWidths = {
-                editor: els.editorPane.offsetWidth / total,
-                preview: els.previewPane.offsetWidth / total,
-                toc: els.tocPane.offsetWidth / total
-            };
+            // 確保儲存的比例總和為 1
+            const e = els.editorPane.offsetWidth / total;
+            const p = els.previewPane.offsetWidth / total;
+            currentWidths = { editor: e, preview: p, toc: 1 - e - p };
             savePrefs(currentWidths);
         }
         drag = null;
@@ -187,5 +192,22 @@ export function initResizers() {
 
     r1.addEventListener('mousedown', (e) => onDown(e, 'resizer1'));
     r2.addEventListener('mousedown', (e) => onDown(e, 'resizer2'));
-    window.addEventListener('resize', () => applyPaneWidths(currentWidths));
+
+    // 使用 ResizeObserver 監聽容器尺寸變化，並加上強制延遲確保佈局完成
+    let rafId = null;
+    const observer = new ResizeObserver(() => {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+            applyPaneWidths(currentWidths);
+        });
+    });
+    observer.observe(container);
+
+    // 視窗大小改變時也觸發
+    window.addEventListener('resize', () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+            applyPaneWidths(currentWidths);
+        });
+    });
 }
