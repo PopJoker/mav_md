@@ -139,35 +139,73 @@ els.editor.addEventListener('input', () => {
 /* ---------- 恢復上次開啟 ---------- */
 $('resumeLastBtn').onclick = () => restoreLastOpen(true);
 
-/* ---------- 拖曳上傳 ---------- */
+/* ---------- 拖曳上傳 (統一由 main 處理) ---------- */
 function initDragAndDrop() {
     const main = $('mainContent');
     const hasFsHandle = 'getAsFileSystemHandle' in DataTransferItem.prototype;
 
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach((type) => {
-        window.addEventListener(type, (e) => e.preventDefault());
-    });
+    // 阻止瀏覽器預設的檔案開啟行為
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => e.preventDefault());
 
-    let dragDepth = 0;
-    main.addEventListener('dragenter', (e) => {
-        dragDepth++;
-        if (e.dataTransfer?.types.includes('Files')) main.classList.add('dragover');
-    });
-    main.addEventListener('dragleave', () => {
-        dragDepth = Math.max(0, dragDepth - 1);
-        if (dragDepth === 0) main.classList.remove('dragover');
-    });
+    // 顯示提示框（如果是圖片就不顯示）
     main.addEventListener('dragover', (e) => {
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        if (e.dataTransfer?.types.includes('Files')) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+
+            // 判斷是否為圖片，若包含圖片則不顯示提示框
+            const hasFiles = e.dataTransfer.items && e.dataTransfer.items.length > 0;
+            let isOnlyImages = hasFiles;
+            if (hasFiles) {
+                for (const item of e.dataTransfer.items) {
+                    if (item.kind === 'file' && !item.type.startsWith('image/')) {
+                        isOnlyImages = false;
+                        break;
+                    }
+                }
+            }
+
+            // 只有當拖曳的不是純圖片時，才加上提示框
+            if (!isOnlyImages) {
+                main.classList.add('dragover');
+            } else {
+                main.classList.remove('dragover');
+            }
+        }
     });
 
-    main.addEventListener('drop', async (e) => {
-        dragDepth = 0;
-        main.classList.remove('dragover');
-        const items = e.dataTransfer?.items;
-        if (!items || items.length === 0) return;
+    // 離開時移除提示框
+    main.addEventListener('dragleave', (e) => {
+        if (!main.contains(e.relatedTarget)) {
+            main.classList.remove('dragover');
+        }
+    });
 
-        if (hasFsHandle) {
+    // 放下檔案
+    main.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        main.classList.remove('dragover'); // 立即移除提示框
+
+        const files = e.dataTransfer?.files;
+        if (!files || files.length === 0) return;
+
+        // 1. 處理圖片
+        const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+        if (imageFiles.length > 0) {
+            const { handleImageFiles } = await import('./images.js');
+            if (!els.editor.value) {
+                $('welcome').classList.add('hidden');
+                $('workspace').classList.remove('hidden');
+            }
+            await handleImageFiles(imageFiles);
+            // 如果拖入的全是圖片，處理完就結束
+            if (imageFiles.length === files.length) return;
+        }
+
+        // 2. 處理資料夾或 .md 檔案
+        const items = e.dataTransfer?.items;
+        if (hasFsHandle && items && items.length > 0) {
             const handles = [];
             for (const item of items) {
                 if (item.kind !== 'file') continue;
@@ -182,8 +220,12 @@ function initDragAndDrop() {
             }
         }
 
-        const files = e.dataTransfer?.files;
-        if (files && files.length > 0) await handleDroppedFiles(files);
+        const mdFiles = Array.from(files).filter((f) => /\.(md|markdown|txt)$/i.test(f.name));
+        if (mdFiles.length > 0) {
+            await handleDroppedFiles(mdFiles);
+        } else if (imageFiles.length === 0) {
+            setStatus('拖入的檔案不是 Markdown 或圖片。');
+        }
     });
 }
 
@@ -223,23 +265,9 @@ async function handleDroppedHandles(handles) {
 
 async function handleDroppedFiles(files) {
     const { confirmDiscard } = await import('./fs.js');
-    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    if (imageFiles.length > 0) {
-        const { handleImageFiles } = await import('./images.js');
-        if (!els.editor.value) {
-            $('welcome').classList.add('hidden');
-            $('workspace').classList.remove('hidden');
-        }
-        await handleImageFiles(imageFiles);
-    }
-    const mdFiles = Array.from(files).filter((f) => /\.(md|markdown|txt)$/i.test(f.name));
-    if (mdFiles.length === 0) {
-        if (imageFiles.length === 0) setStatus('拖入的檔案不是 Markdown 或圖片。');
-        return;
-    }
     if (!await confirmDiscard()) return;
     let opened = false;
-    for (const file of mdFiles) {
+    for (const file of files) {
         state.content = await file.text();
         els.editor.value = state.content;
         setDirty(true);
@@ -251,14 +279,11 @@ async function handleDroppedFiles(files) {
         setStatus('拖入檔案：可編輯，但需「另存新檔」才能寫回本機');
         opened = true;
     }
-    if (!opened && mdFiles.length === 0 && imageFiles.length === 0) {
-        setStatus('拖入的檔案不是 Markdown（.md / .markdown / .txt）。');
-    }
 }
 
 /* ---------- 啟動 ---------- */
 initShareButton();
-initImageDrop();
+initImageDrop(); // 只處理編輯器內的貼上與拖放
 
 (async () => {
     // 1. 先嘗試恢復上次資料夾（但不強制，以防卡住）
@@ -271,7 +296,7 @@ initImageDrop();
 registerServiceWorker();
 initInstallPrompt();
 initIconWizard();
-initDragAndDrop();
+initDragAndDrop(); // 處理整個頁面的拖放
 
 setCurrentWidths(prefs.widths);
 initResizers();

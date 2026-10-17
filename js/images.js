@@ -1,6 +1,6 @@
 /* 圖片拖入 / 貼上處理 */
 
-import { $, state, els, setStatus } from './config.js';
+import { state, els, setStatus } from './config.js';
 import { render } from './markdown.js';
 
 /* 將文字插入編輯器游標位置 */
@@ -18,7 +18,6 @@ function insertAtCursor(text) {
 function ensureWritableFolder() {
     if (state.dir && state.active?.parentHandle) return true;
     setStatus('請先「開啟資料夾」並開啟一篇筆記，圖片才能存到本機（與 .md 放在一起）。');
-    // 也順便用 alert，避免使用者沒注意到狀態列
     alert('要插入本機圖片，請先：\n1. 點「開啟資料夾」\n2. 開啟或新增一篇筆記\n\n這樣圖片才能與筆記一起存在本機，重整後也不會消失。');
     return false;
 }
@@ -37,11 +36,8 @@ async function persistImage(file) {
     await w.write(file);
     await w.close();
 
-    // 相對路徑：若筆記在子資料夾，要 ../ 回到上一層
-    const notePath = state.active.path || '';
-    const depth = notePath.includes('/') ? notePath.split('/').length - 1 : 0;
-    const prefix = '../'.repeat(depth);
-    return `${prefix}assets/${safeName}`;
+    // 圖片與筆記在同一個資料夾的 assets 底下，所以直接使用 ./assets/ 即可
+    return `./assets/${safeName}`;
 }
 
 /* 處理一批圖片檔 */
@@ -66,9 +62,9 @@ export async function handleImageFiles(files) {
     return count;
 }
 
-/* 初始化：攔截貼上、拖放圖片 */
+/* 初始化：攔截貼上、拖放圖片 (僅限編輯器內部) */
 export function initImageDrop() {
-    // 1. 貼上（Ctrl+V）
+    // 貼上（Ctrl+V）
     els.editor.addEventListener('paste', async (e) => {
         const items = e.clipboardData?.items;
         if (!items) return;
@@ -84,7 +80,7 @@ export function initImageDrop() {
         await handleImageFiles(imageFiles);
     });
 
-    // 2. 拖放到編輯器
+    // 拖放到編輯器
     els.editor.addEventListener('dragover', (e) => {
         if (e.dataTransfer?.types.includes('Files')) {
             e.preventDefault();
@@ -97,18 +93,7 @@ export function initImageDrop() {
         const images = Array.from(files).filter((f) => f.type.startsWith('image/'));
         if (images.length === 0) return;
         e.preventDefault();
-        e.stopPropagation();
-        await handleImageFiles(images);
-    });
-
-    // 3. 拖放到整個主區
-    const main = $('mainContent');
-    main.addEventListener('drop', async (e) => {
-        const files = e.dataTransfer?.files;
-        if (!files) return;
-        const images = Array.from(files).filter((f) => f.type.startsWith('image/'));
-        if (images.length === 0) return;
-        e.preventDefault();
+        e.stopPropagation(); // 阻止冒泡到 mainContent
         await handleImageFiles(images);
     });
 }
