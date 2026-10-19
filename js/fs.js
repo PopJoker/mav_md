@@ -181,45 +181,209 @@ export async function openFile() {
     }
 }
 
-/* ---------- 新增 / 另存 / 改名 / 移動 ---------- */
-export async function newFile() {
-    if (!await confirmDiscard()) return;
-    let name = prompt('新筆記名稱（可不輸入 .md）：', '新筆記');
-    if (name === null) return;
-    name = validName(name);
-    if (!name) return;
+/* ---------- 新增筆記：自訂 modal（與 shareModal 相同顯示邏輯，避免跑版） ---------- */
 
+/* 收集目前資料夾內所有子資料夾（含根目錄，路徑用 '' 表示） */
+async function collectSubDirs(dir, path = '', out = [{ label: '（根目錄）', path: '', handle: dir }]) {
     try {
-        let handle, parentHandle = state.dir;
-        if (state.dir) {
-            const target = await chooseTargetDirectory();
-            parentHandle = target;
-            handle = await target.getFileHandle(name, { create: true });
-        } else if ('showSaveFilePicker' in window) {
-            handle = await window.showSaveFilePicker({
-                suggestedName: name,
+        for await (const e of dir.values()) {
+            if (e.kind !== 'directory') continue;
+            const p = path ? `${path}/${e.name}` : e.name;
+            out.push({ label: p, path: p, handle: e });
+            await collectSubDirs(e, p, out);
+        }
+    } catch { /* 略過無法列舉的資料夾 */ }
+    return out;
+}
+
+/* 依相對路徑從 rootDir 取得（或建立）目標子資料夾 handle */
+async function resolveDirByPath(rootDir, relPath) {
+    if (!relPath) return rootDir;
+    let dir = rootDir;
+    for (const part of relPath.split('/').filter(Boolean)) {
+        dir = await dir.getDirectoryHandle(part, { create: true });
+    }
+    return dir;
+}
+
+/* 目前 active 筆記所在的相對資料夾路徑（預設存放位置用） */
+function getParentPathOfActive() {
+    const p = state.active?.path;
+    if (!p || !p.includes('/')) return '';
+    return p.slice(0, p.lastIndexOf('/'));
+}
+
+function closeNewNoteModal() {
+    const modal = $('newNoteModal');
+    if (!modal) return;
+    const panel = modal.querySelector('div');
+    modal.classList.add('opacity-0');
+    panel.classList.remove('scale-100');
+    panel.classList.add('scale-95');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 200);
+}
+
+function openNewNoteModal() {
+    const modal = $('newNoteModal');
+    if (!modal) { setStatus('找不到新增筆記視窗元素。'); return; }
+
+    const nameInput = $('newNoteName');
+    const dirSelect = $('newNoteDir');
+    const dirHint = $('newNoteDirHint');
+    const hint = $('newNoteHint');
+    const panel = modal.querySelector('div');
+
+    // 填入存放位置清單
+    dirSelect.innerHTML = '';
+    if (state.dir) {
+        const rootOpt = document.createElement('option');
+        rootOpt.value = '';
+        rootOpt.textContent = '（根目錄）';
+        dirSelect.appendChild(rootOpt);
+
+        collectSubDirs(state.dir).then((dirs) => {
+            const prevValue = dirSelect.value;
+            dirSelect.innerHTML = '';
+            dirSelect.appendChild(rootOpt);
+            for (const d of dirs) {
+                if (!d.path) continue;
+                const opt = document.createElement('option');
+                opt.value = d.path;
+                opt.textContent = d.label;
+                dirSelect.appendChild(opt);
+            }
+            const want = prevValue || getParentPathOfActive();
+            if (want) {
+                const matched = Array.from(dirSelect.options).find((o) => o.value === want);
+                if (matched) matched.selected = true;
+            }
+        });
+
+        dirHint.textContent = '只列出已開啟資料夾內的子資料夾。';
+    } else {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '（尚未開啟資料夾，建立時會另存新檔）';
+        dirSelect.appendChild(opt);
+        dirHint.textContent = '尚未開啟資料夾，建立時會跳出另存新檔對話框。';
+    }
+
+    nameInput.value = '新筆記';
+    hint.classList.add('hidden');
+    hint.textContent = '';
+
+    // 顯示：先移除 hidden，下一幀再處理 opacity / scale（與 shareModal 一致）
+    modal.classList.remove('hidden');
+    requestAnimationFrame(() => {
+        modal.classList.remove('opacity-0');
+        panel.classList.remove('scale-95');
+        panel.classList.add('scale-100');
+        nameInput.focus();
+        nameInput.select();
+    });
+
+    $('newNoteCancel').onclick = closeNewNoteModal;
+
+    $('newNoteConfirm').onclick = async () => {
+        const raw = nameInput.value;
+        const fileName = validName(raw);
+        if (!fileName) {
+            hint.textContent = '請輸入有效檔名。';
+            hint.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            /* 情況 A：已有資料夾 → 直接寫入指定子資料夾（不需要任何 picker） */
+            if (state.dir) {
+                const relPath = dirSelect.value;
+                const targetDir = await resolveDirByPath(state.dir, relPath);
+
+                let exists = false;
+                try {
+                    await targetDir.getFileHandle(fileName);
+                    exists = true;
+                } catch (e) {
+                    if (e.name !== 'NotFoundError') throw e;
+                }
+
+                const handle = await targetDir.getFileHandle(fileName, { create: true });
+                if (!exists) await writeHandle(handle, '');
+
+                closeNewNoteModal();
+                await rebuildTree();
+
+                const fullPath = relPath ? `${relPath}/${fileName}` : fileName;
+                const createdItem =
+                    state.files.find((f) => f.path === fullPath)
+                    || { name: fileName, path: fullPath, handle, parentHandle: targetDir };
+
+                if (exists) {
+                    const f = await handle.getFile();
+                    state.content = await f.text();
+                    els.editor.value = state.content;
+                    setDirty(false);
+                    activate(createdItem);
+                    showWorkspace();
+                    render();
+                    setStatus(`「${fullPath}」已存在，已為你開啟原檔案。`);
+                } else {
+                    state.content = '';
+                    els.editor.value = '';
+                    activate(createdItem);
+                    showWorkspace();
+                    setDirty(false);
+                    els.editor.focus();
+                    setStatus(`新筆記已建立：${fullPath}`);
+                }
+                return;
+            }
+
+            /* 情況 B：尚未開啟資料夾 → Save Picker
+               此按鈕 click 為新鮮手勢，呼叫 picker 是安全的 */
+            if (!('showSaveFilePicker' in window)) {
+                hint.textContent = '此瀏覽器不支援另存新檔，請先「開啟資料夾」。';
+                hint.classList.remove('hidden');
+                return;
+            }
+
+            const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
                 types: [{ description: 'Markdown 文件', accept: { 'text/markdown': ['.md'] } }]
             });
-        } else throw Error('請先開啟資料夾，或使用支援另存新檔的 Chrome／Edge');
 
-        await rebuildTree();
+            const file = await handle.getFile();
+            const item = {
+                name: file.name,
+                path: file.name,
+                handle,
+                parentHandle: null
+            };
+            state.files.push(item);
 
-        const newPath = parentHandle && state.dir
-            ? (parentHandle === state.dir ? name : `${parentHandle.name}/${name}`)
-            : name;
-        const createdItem = state.files.find((f) => f.path === newPath)
-            || { name: handle.name || name, path: newPath, handle, parentHandle };
+            closeNewNoteModal();
+            await rebuildTree();
 
-        state.content = '';
-        els.editor.value = '';
-        activate(createdItem);
-        showWorkspace();
-        setDirty(false);
-        els.editor.focus();
-        setStatus('新筆記已建立，編輯後按「儲存」');
-    } catch (e) {
-        if (e.name !== 'AbortError') setStatus(`建立失敗：${e.message}`);
-    }
+            state.content = '';
+            els.editor.value = '';
+            activate(item);
+            showWorkspace();
+            setDirty(false);
+            els.editor.focus();
+            setStatus('新筆記已建立，編輯後按「儲存」');
+        } catch (e) {
+            if (e.name === 'AbortError') return; // 使用者取消 picker，保留 modal
+            hint.textContent = `建立失敗：${e.message}`;
+            hint.classList.remove('hidden');
+        }
+    };
+}
+
+export async function newFile() {
+    if (!await confirmDiscard()) return;
+    openNewNoteModal();
 }
 
 export async function saveAs() {
