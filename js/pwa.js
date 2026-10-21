@@ -16,13 +16,40 @@ export function registerServiceWorker() {
 /* ---------- PWA 安裝按鈕 ---------- */
 let deferredPrompt = null;
 
+/* 判斷目前是否已經以「已安裝的 App」形式運行 */
+function isAppInstalled() {
+    return (
+        window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+        window.navigator.standalone === true // iOS Safari
+    );
+}
+
 export function initInstallPrompt() {
     const installBtn = $('installPwaBtn');
+
+    // 1. 若已安裝（standalone 模式），直接隱藏按鈕，不再註冊其他邏輯
+    if (isAppInstalled()) {
+        installBtn?.classList.add('hidden');
+        return;
+    }
+
+    // 2. 監聽 display-mode 變化（例如使用者從瀏覽器切換到已安裝 App）
+    const mql = window.matchMedia('(display-mode: standalone)');
+    const onDisplayModeChange = (e) => {
+        if (e.matches) installBtn?.classList.add('hidden');
+    };
+    if (mql.addEventListener) mql.addEventListener('change', onDisplayModeChange);
+    else mql.addListener(onDisplayModeChange); // 舊版瀏覽器
+
+    // 3. 先預設隱藏，等 beforeinstallprompt 才顯示
+    installBtn?.classList.add('hidden');
 
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        installBtn?.classList.remove('hidden');
+        // 再次確認未被安裝才顯示
+        if (!isAppInstalled()) installBtn?.classList.remove('hidden');
     });
 
     if (installBtn) {

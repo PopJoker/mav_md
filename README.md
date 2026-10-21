@@ -11,7 +11,7 @@
 ├── index.html          ← HTML 骨架 + 外部資源引入
 ├── .nojekyll           ← 空檔案（GitHub Pages 用）
 ├── example.md          ← Markdown 語法範例文件
-├── sw.js               ← Service Worker（離線快取）
+├── sw.js               ← Service Worker（離線快取，目前 v5）
 ├── css/
 │   └── style.css       ← 全部自訂樣式
 └── js/
@@ -22,7 +22,10 @@
     ├── storage.js      ← IndexedDB（FileSystemHandle 持久化）
     ├── fs.js           ← 檔案系統操作（開檔、存檔、改名、移動）
     ├── panels.js       ← 三欄版面寬度、拖曳調整
-    └── markdown.js     ← Markdown 渲染、標題 slug、TOC
+    ├── markdown.js     ← Markdown 渲染、標題 slug、TOC
+    ├── images.js       ← 圖片拖入 / 貼上處理
+    ├── localimg.js     ← 本機相對路徑圖片載入
+    └── urlshare.js     ← 專屬連結（#file= / #share= / #url=）
 ```
 
 ---
@@ -36,7 +39,8 @@
   - 引入 Tailwind、marked、highlight.js、DOMPurify（CDN）
   - `<link>` 引入 `css/style.css`
   - 動態 manifest 的 `<link id="pwaManifest">`（由 JS 產生 Data URL）
-  - 所有 UI 區塊：Topbar、側邊欄、主工作區、Icon 精靈、Toast
+  - 所有 UI 區塊：Topbar、側邊欄、主工作區、Icon 精靈、Toast、分享 / 新增筆記 modal
+  - 「安裝 App」按鈕預設帶 `hidden` class，由 `pwa.js` 動態決定是否顯示
   - 最後用 `<script type="module" src="./js/main.js">` 載入進入點
 - **注意**：
   - 用 ES Module，**必須透過 http(s) 開啟**（不能 `file://`）
@@ -58,12 +62,14 @@
 
 - **職責**：Service Worker，負責 PWA 離線快取。
 - **內容**：
-  - `CACHE_NAME` 版本號（改版時**記得更新**，如 `v5` → `v6`）
+  - `CACHE_NAME` 版本號（**目前為 `mavmd-pwa-v5`**，改版時務必更新，如 `v5` → `v6`）
   - `ASSETS` 清單：列出所有本機與外部資源
   - `install`：快取全部資源（外部資源用 `no-cors` 模式）
   - `activate`：清除舊版本快取
   - `fetch`：導航請求失敗時 fallback 到 `index.html`；其他請求優先讀快取
-- **注意**：修改任何被快取的檔案後，必須更新 `CACHE_NAME`，否則瀏覽器會一直用舊版
+- **注意**：
+  - 修改任何被快取的檔案後，必須更新 `CACHE_NAME`，否則瀏覽器會一直用舊版
+  - DevTools → Application → Service Workers → 勾「Update on reload」可強制更新
 
 ---
 
@@ -133,7 +139,7 @@
   - **狀態**：`activate`（設定作用中檔案）、`confirmDiscard`（離開前確認）
   - **開檔**：`openNote`、`openFile`、`openFolder`
   - **讀寫**：`writeHandle`、`save`
-  - **CRUD**：`newFile`、`saveAs`、`renameFile`、`moveFile`
+  - **CRUD**：`newFile`（自訂 modal）、`saveAs`、`renameFile`、`moveFile`
   - **恢復**：`restoreLastOpen`（頁面載入時自動恢復上次資料夾 / 檔案）
   - `chooseTargetDirectory`：共用資料夾選擇器
 - **依賴**：`config.js`、`storage.js`、`prefs.js`、`markdown.js`
@@ -164,15 +170,51 @@
     6. 為每個 `pre` 加上「複製」按鈕
     7. 解析 `wiki:` 連結並綁定點擊開啟對應筆記
     8. 呼叫 `generateTOC`
+    9. 呼叫 `hydrateLocalImages()`（非同步載入本機相對路徑圖片）
   - `generateTOC()`：從 `viewer` 抓取所有標題，產生右側導覽列
-- **依賴**：`config.js`、`fs.js`（`openNote`）
+- **依賴**：`config.js`、`fs.js`（`openNote`）、`localimg.js`
+
+### `js/images.js`（圖片拖入 / 貼上）
+
+- **職責**：攔截編輯器的貼上與拖放事件，把圖片寫入本機資料夾。
+- **內容**：
+  - `insertAtCursor(text)`：在游標位置插入文字
+  - `ensureWritableFolder()`：確認有可寫入的資料夾
+  - `persistImage(file)`：把圖片寫入 `assets/`，回傳相對路徑
+  - `handleImageFiles(files)`：批次處理圖片，逐張插入 Markdown
+  - `initImageDrop()`：綁定編輯器 `paste` 與 `drop` 事件
+- **依賴**：`config.js`、`markdown.js`
+
+### `js/localimg.js`（本機圖片載入）
+
+- **職責**：把 Markdown 裡的相對路徑圖片，從本機資料夾讀出轉成 blob URL。
+- **內容**：
+  - `resolveFileHandle(baseDir, relativePath)`：依相對路徑找出 `FileSystemFileHandle`
+  - `isLocalRelative(src)`：判斷是否為「應從本機載入」的路徑（排除 `http:`、`data:`、`blob:`）
+  - `releaseLocalImages()`：釋放舊的 blob URL
+  - `hydrateLocalImages()`：主函式，掃描 `viewer` 內所有 `<img>` 並替換 `src`
+- **注意**：瀏覽器 FileSystem API 沒有 parent 存取，**不支援 `../`** 向上跳的路徑
+- **依賴**：`config.js`
+
+### `js/urlshare.js`（專屬連結）
+
+- **職責**：處理 `#file=`、`#share=`、`#url=` 三種 hash，並產生「取得連結」彈窗。
+- **內容**：
+  - `encodeShare(text)` / `decodeShare(b64url)`：Base64 URL-safe 編碼（供 `#share=` 用）
+  - `copyShareLink()`：產生 `#file=<path>` 連結並開啟 modal
+  - `handleFileHash()`：解析 `#file=`；若資料夾已授權就直接開檔，否則顯示授權橫幅
+  - `loadFromHash()`：頁面載入時解析 hash，依序處理 `#file=` → `#share=` → `#url=`
+  - `applyExternalContent(md, title)`：把外部內容載入編輯器
+  - `initShareButton()`：綁定按鈕、modal 關閉、`hashchange` 監聽
+- **依賴**：`config.js`、`markdown.js`、`fs.js`（動態 import）
 
 ### `js/pwa.js`（PWA 功能）
 
 - **職責**：Service Worker 註冊、安裝提示、Icon 精靈、Toast 提示。
 - **內容**：
   - `registerServiceWorker()`：註冊 `./sw.js`
-  - `initInstallPrompt()`：攔截 `beforeinstallprompt` 顯示「安裝 App」按鈕
+  - `isAppInstalled()`：判斷目前是否以 standalone 模式運行（含 iOS Safari 的 `navigator.standalone`）
+  - `initInstallPrompt()`：**已安裝時直接隱藏「安裝 App」按鈕**；未安裝時先隱藏，等 `beforeinstallprompt` 才顯示；同時監聽 `matchMedia('(display-mode: standalone)')` 變化與 `appinstalled` 事件
   - `initIconWizard()`：綁定 icon 精靈的取消 / 確認按鈕
   - `openIconWizard(accent)` / `closeIconWizard()`：開關精靈
   - `showToast(text, actionLabel, actionFn, duration)`：底部 Toast
@@ -192,7 +234,7 @@
   - **下載範例**：`fetch('./example.md')` → 下載 + 載入編輯器
   - 編輯器 `input` 事件 → 觸發 `render()` + `setDirty`
   - 拖曳上傳（`initDragAndDrop`、`handleDroppedHandles`、`handleDroppedFiles`）
-  - 啟動順序：`registerServiceWorker` → `initInstallPrompt` → `initIconWizard` → `initDragAndDrop` → `initResizers` → `updatePanels` → `restoreLastOpen`
+  - 啟動順序：`restoreLastOpen` → `loadFromHash` → `registerServiceWorker` → `initInstallPrompt` → `initIconWizard` → `initDragAndDrop` → `initResizers` → `updatePanels`
 - **依賴**：幾乎所有模組
 
 ---
@@ -206,11 +248,14 @@ main.js
   ├── storage.js    （無依賴）
   ├── fs.js         → config, storage, prefs, markdown
   ├── panels.js     → config, prefs
-  ├── markdown.js   → config, fs
+  ├── markdown.js   → config, fs, localimg
+  ├── images.js     → config, markdown
+  ├── localimg.js   → config
+  ├── urlshare.js   → config, markdown
   └── pwa.js        → config, prefs
 ```
 
-**原則**：底層模組（`config`、`storage`）不應 import 上層模組，避免循環依賴。
+**原則**：底層模組（`config`、`storage`、`localimg`）不應 import 上層模組，避免循環依賴。
 
 ---
 
@@ -228,6 +273,10 @@ main.js
 | 加新的 UI 事件 | `js/main.js` 對應區塊 |
 | 改檔名驗證規則 | `js/config.js` 的 `validName` |
 | 加新的偏好設定項目 | `js/prefs.js` 的 `loadPrefs` / `savePrefs` |
+| 改「安裝 App」按鈕顯示邏輯 | `js/pwa.js` 的 `initInstallPrompt` / `isAppInstalled` |
+| 改圖片存放位置或命名規則 | `js/images.js` 的 `persistImage` |
+| 改本機圖片路徑解析規則 | `js/localimg.js` 的 `resolveFileHandle` |
+| 改專屬連結格式 | `js/urlshare.js` 的 `copyShareLink` / `handleFileHash` |
 
 ---
 
@@ -242,7 +291,8 @@ main.js
    直接雙擊 `index.html` 用 `file://` 開啟，模組會載入失敗。
 
 2. **改 `sw.js` 後要更新 `CACHE_NAME`**
-   否則瀏覽器會一直回傳舊快取。DevTools → Application → Service Workers 可勾「Update on reload」強制更新。
+   目前版本：`mavmd-pwa-v5`。改為 `v6`、`v7`… 否則瀏覽器會一直回傳舊快取。
+   DevTools → Application → Service Workers 可勾「Update on reload」強制更新。
 
 3. **`.nojekyll` 不可刪除**
    否則 GitHub Pages 上 `fetch('./example.md')` 會拿到渲染後的 HTML 而不是原始 Markdown。
@@ -256,6 +306,21 @@ main.js
    - `sw.js` 的 `CACHE_NAME`（`mavmd-pwa-v5` → `v6`）
    - `index.html` 的 `<title>`、meta 版本號（如有）
 
+6. **PWA 安裝按鈕的可見性**
+   - 按鈕 `#installPwaBtn` 在 HTML 中預設帶 `hidden`，避免載入瞬間閃現
+   - `initInstallPrompt()` 會在以下情況主動隱藏：
+     - 目前以 standalone 模式運行（`display-mode: standalone`、`window-controls-overlay`、iOS `navigator.standalone`）
+     - 收到 `appinstalled` 事件後
+     - 使用者於 `beforeinstallprompt` 對話框按下「安裝」
+   - 只有在「尚未安裝」且瀏覽器觸發 `beforeinstallprompt` 時才會顯示
+   - 已安裝的 PWA 重新開啟時，`beforeinstallprompt` **不會**再觸發，因此必須靠 `isAppInstalled()` 主動偵測
+
+7. **本機圖片的限制**
+   - 圖片會存到「筆記所在資料夾」下的 `assets/`
+   - Markdown 內的路徑是相對於筆記本身（`./assets/xxx.png`）
+   - `localimg.js` **不支援 `../`**（FileSystem API 無 parent handle 可取得）
+   - 若找不到圖片，會把 `alt` 改成錯誤訊息提示
+
 ---
 
 ## 未來可選優化
@@ -263,4 +328,5 @@ main.js
 - 把 `js/fs.js`（約 350 行）再拆成 `fs-open.js` / `fs-write.js` / `fs-crud.js`
 - CDN 的 UMD 改為 ESM（`https://esm.sh/marked@14`）避免全域變數
 - 上線前壓縮：`npx lightningcss --minify css/style.css -o css/style.min.css`
-- 加入 `manifest.json` 靜態檔（若不需要動態換色，可完全取代 Data URL 方案）
+- 加入靜態 `manifest.json`（若不需要動態換色，可完全取代 Data URL 方案）
+- 以 `idb` 套件簡化 `storage.js` 的 IndexedDB 樣板碼
